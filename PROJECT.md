@@ -10,8 +10,8 @@ state of the software side of this project.
 
 ## Overall status
 
-Early firmware stage. Four modules exist in `lib/`. No `main.py` yet. The logging
-stack is complete and fully tested on hardware.
+Early firmware stage. Five modules exist in `lib/`. No `main.py` yet. The logging
+stack is complete and fully tested on hardware. Vent servos are working.
 
 ---
 
@@ -23,6 +23,7 @@ stack is complete and fully tested on hardware.
 | `lib/exhaust.py` | Complete | Yes — all tests pass |
 | `lib/sdcard.py` | Complete | Yes — all tests pass |
 | `lib/logger.py` | Complete | Yes — all tests pass |
+| `lib/vents.py` | Complete | Yes — all tests pass |
 | `main.py` | Not written | — |
 
 ---
@@ -124,15 +125,30 @@ worth noting:
 
 ---
 
+## lib/vents.py
+
+Controls 2× MG90S servos driving butterfly-style intake and exhaust dampers.
+
+- PWM on GP14 (intake) and GP15 (exhaust); 50 Hz standard hobby servo frequency
+- Both servos always commanded together (open or closed)
+- PWM de-energized after each move (deinit after 600ms travel time) to prevent
+  holding torque, buzz, and heat; PWM objects re-initialised on every move
+- `open()` → duty 6225 (1.9 ms pulse); `close()` → duty 3604 (1.1 ms pulse)
+- Pulse range inset from 1.0–2.0 ms spec to protect homemade linkage
+- `is_open()` reflects last commanded position (no position sensing hardware)
+- `__init__` calls `close()` so physical position matches software state at boot
+- Accepts optional `logger=None`; calls `logger.event("vents", ...)` on open/close
+- All unit tests pass on hardware
+
+---
+
 ## What still needs building
 
 In rough priority order:
 
 1. **SHT31 sensors** (`lib/sensors.py`) — I²C on GP0/GP1, two addresses,
    temp + RH readings
-2. **Vent servos** (`lib/vents.py`) — MG90S on GP14 (intake) and GP15 (exhaust),
-   PWM position control
-3. **Heater** (`lib/heater.py`) — SSR on GP18, simple digital on/off with safety
+2. **Heater** (`lib/heater.py`) — SSR on GP18, simple digital on/off with safety
    interlock logic
 4. **Moisture probes** (`lib/moisture.py`) — ADC on GP26/GP27, AC excitation on
    GP12/GP13
