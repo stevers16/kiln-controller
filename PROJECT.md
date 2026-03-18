@@ -10,8 +10,8 @@ state of the software side of this project.
 
 ## Overall status
 
-Early firmware stage. Four modules exist in `lib/`. No `main.py` yet. The SD card
-hardware issue (see below) is the current blocker for completing the logging stack.
+Early firmware stage. Four modules exist in `lib/`. No `main.py` yet. The logging
+stack is complete and fully tested on hardware.
 
 ---
 
@@ -21,8 +21,8 @@ hardware issue (see below) is the current blocker for completing the logging sta
 |---|---|---|
 | `lib/circulation.py` | Complete | Yes — all tests pass |
 | `lib/exhaust.py` | Complete | Yes — all tests pass |
-| `lib/sdcard.py` | Complete (pending HW fix) | Partial — see below |
-| `lib/logger.py` | Complete (pending HW fix) | Not yet |
+| `lib/sdcard.py` | Complete | Yes — all tests pass |
+| `lib/logger.py` | Complete | Yes — all tests pass |
 | `main.py` | Not written | — |
 
 ---
@@ -67,6 +67,11 @@ Wraps the MicroPython SPI sdcard driver and `uos.mount()`.
   conflict with this wrapper file — see deployment note below
 - Silent fail: prints REPL warning, returns `False` on any exception
 - `is_mounted()`, `mount_point` property, safe `unmount()`
+- `listdir(subdir="")`: returns sorted list of filenames at the SD root or a
+  subdirectory; returns `[]` if not mounted or path missing
+- `read_text(filename)`: returns full contents of a text file as a string;
+  filename is relative to the mount point; returns `None` on any failure
+- All unit tests pass on hardware
 
 **Deployment note:** The MicroPython SPI sdcard Python driver must be deployed to
 the Pico as `sdcard_driver.py` (NOT `sdcard.py`). A copy lives at the repo root
@@ -75,14 +80,6 @@ for convenience. Deploy with:
 mpremote cp sdcard_driver.py :sdcard_driver.py
 mpremote cp lib/sdcard.py :lib/sdcard.py
 ```
-
-**Hardware issue — current blocker:** Unit tests fail with
-`timeout waiting for v2 card`. This means CMD8 identified the card as SDHC/SDXC,
-but the ACMD41 initialisation loop timed out — basic SPI communication is working
-but the card won't complete init. Likely causes: insufficient decoupling on the
-SD module's 3.3V supply, or marginal wiring. Software-side mitigations already
-applied (400 kHz init speed, CS high before SPI init). Resolving this unblocks
-`lib/logger.py` testing.
 
 ---
 
@@ -104,7 +101,7 @@ tested on hardware (blocked by SD card issue above).
 - Silent fail on all SD writes — kiln keeps running if card fails mid-run
 
 **Integration test:** `test_logging.py` at repo root exercises logger + circulation
-fan events end-to-end. Ready to run once the SD card issue is resolved.
+fan events end-to-end. All tests pass on hardware.
 
 ---
 
@@ -131,17 +128,15 @@ worth noting:
 
 In rough priority order:
 
-1. **Resolve SD card hardware issue** — then run `lib/sdcard.py` and
-   `lib/logger.py` unit tests, and `test_logging.py` integration test
-2. **SHT31 sensors** (`lib/sensors.py`) — I²C on GP0/GP1, two addresses,
+1. **SHT31 sensors** (`lib/sensors.py`) — I²C on GP0/GP1, two addresses,
    temp + RH readings
-3. **Vent servos** (`lib/vents.py`) — MG90S on GP14 (intake) and GP15 (exhaust),
+2. **Vent servos** (`lib/vents.py`) — MG90S on GP14 (intake) and GP15 (exhaust),
    PWM position control
-4. **Heater** (`lib/heater.py`) — SSR on GP18, simple digital on/off with safety
+3. **Heater** (`lib/heater.py`) — SSR on GP18, simple digital on/off with safety
    interlock logic
-5. **Moisture probes** (`lib/moisture.py`) — ADC on GP26/GP27, AC excitation on
+4. **Moisture probes** (`lib/moisture.py`) — ADC on GP26/GP27, AC excitation on
    GP12/GP13
-6. **Display** (`lib/display.py`) — UART1 on GP8/GP9
-7. **Wi-Fi / REST API** — AP mode, HTTP server, time sync, mobile app interface
-8. **Drying schedule controller** — multi-stage logic consuming sensor readings
-9. **`main.py`** — entry point wiring all modules together
+5. **Display** (`lib/display.py`) — UART1 on GP8/GP9
+6. **Wi-Fi / REST API** — AP mode, HTTP server, time sync, mobile app interface
+7. **Drying schedule controller** — multi-stage logic consuming sensor readings
+8. **`main.py`** — entry point wiring all modules together

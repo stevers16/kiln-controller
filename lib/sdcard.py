@@ -79,6 +79,37 @@ class SDCard:
         """Returns the mount point path, e.g. '/sd'."""
         return self._mount_point
 
+    def listdir(self, subdir=""):
+        """
+        Return a sorted list of filenames in the given subdirectory of the SD card.
+        subdir is relative to the mount point, e.g. "" for root, "logs" for /sd/logs.
+        Returns an empty list if not mounted or the path does not exist.
+        """
+        if not self._mounted:
+            return []
+        path = self._mount_point if not subdir else f"{self._mount_point}/{subdir.strip('/')}"
+        try:
+            return sorted(uos.listdir(path))
+        except Exception as e:
+            print(f"[sdcard] WARNING: listdir failed — {e}")
+            return []
+
+    def read_text(self, filename):
+        """
+        Return the full contents of a text file on the SD card as a string.
+        filename is relative to the mount point, e.g. "event_20260318_1400.txt".
+        Returns None if not mounted, the file does not exist, or a read error occurs.
+        """
+        if not self._mounted:
+            return None
+        path = f"{self._mount_point}/{filename.lstrip('/')}"
+        try:
+            with open(path, "r") as f:
+                return f.read()
+        except Exception as e:
+            print(f"[sdcard] WARNING: read_text failed — {e}")
+            return None
+
 
 # --- Unit test ---
 def test():
@@ -120,13 +151,60 @@ def test():
     print(f"  {'PASS' if passed else 'FAIL'} — can write and read back a test file")
     all_passed &= passed
 
-    # --- Test 5: unmount() ---
+    # --- Test 5: listdir() returns filenames ---
+    files = sd.listdir()
+    passed = isinstance(files, list) and "test_sdcard.txt" not in files  # we removed it above
+    # Write two files so we can verify listing
+    uos.mkdir(sd.mount_point + "/subdir") if "subdir" not in sd.listdir() else None
+    for name in ("aaa.txt", "zzz.txt"):
+        with open(sd.mount_point + "/" + name, "w") as f:
+            f.write("x")
+    files = sd.listdir()
+    passed = "aaa.txt" in files and "zzz.txt" in files and files == sorted(files)
+    print(f"  {'PASS' if passed else 'FAIL'} — listdir() returns sorted filenames")
+    all_passed &= passed
+
+    # --- Test 6: listdir(subdir) ---
+    with open(sd.mount_point + "/subdir/inner.txt", "w") as f:
+        f.write("inner")
+    sub_files = sd.listdir("subdir")
+    passed = sub_files == ["inner.txt"]
+    print(f"  {'PASS' if passed else 'FAIL'} — listdir('subdir') returns subdir contents")
+    all_passed &= passed
+
+    # --- Test 7: read_text() returns file contents ---
+    with open(sd.mount_point + "/read_test.txt", "w") as f:
+        f.write("hello kiln")
+    content = sd.read_text("read_test.txt")
+    passed = content == "hello kiln"
+    print(f"  {'PASS' if passed else 'FAIL'} — read_text() returns file contents")
+    all_passed &= passed
+
+    # --- Test 8: read_text() returns None for missing file ---
+    content = sd.read_text("does_not_exist.txt")
+    passed = content is None
+    print(f"  {'PASS' if passed else 'FAIL'} — read_text() returns None for missing file")
+    all_passed &= passed
+
+    # Clean up test files
+    for name in ("aaa.txt", "zzz.txt", "read_test.txt"):
+        try:
+            uos.remove(sd.mount_point + "/" + name)
+        except Exception:
+            pass
+    try:
+        uos.remove(sd.mount_point + "/subdir/inner.txt")
+        uos.rmdir(sd.mount_point + "/subdir")
+    except Exception:
+        pass
+
+    # --- Test 9: unmount() ---
     sd.unmount()
     passed = True  # No exception means success
     print(f"  {'PASS' if passed else 'FAIL'} — unmount() succeeds")
     all_passed &= passed
 
-    # --- Test 6: is_mounted() after unmount ---
+    # --- Test 10: is_mounted() after unmount ---
     passed = not sd.is_mounted()
     print(f"  {'PASS' if passed else 'FAIL'} — is_mounted() False after unmount")
     all_passed &= passed
