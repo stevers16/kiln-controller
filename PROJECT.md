@@ -10,8 +10,9 @@ state of the software side of this project.
 
 ## Overall status
 
-Early firmware stage. Five modules exist in `lib/`. No `main.py` yet. The logging
-stack is complete and fully tested on hardware. Vent servos are working.
+Early firmware stage. Six modules exist in `lib/`. No `main.py` yet. The logging
+stack is complete and fully tested on hardware. Vent servos are working. Current
+monitoring (INA219) is implemented and basic hardware test confirmed passing.
 
 ---
 
@@ -24,6 +25,7 @@ stack is complete and fully tested on hardware. Vent servos are working.
 | `lib/sdcard.py` | Complete | Yes — all tests pass |
 | `lib/logger.py` | Complete | Yes — all tests pass |
 | `lib/vents.py` | Complete | Yes — all tests pass |
+| `lib/current.py` | Complete | Basic test passing on hardware |
 | `main.py` | Not written | — |
 
 ---
@@ -38,7 +40,10 @@ Controls 3× 120mm 4-pin PWM circulation fans wired as a group.
 - `tick()` call once per minute to accumulate `hours_on`
 - `read_rpm()` returns `None` (no tach on these fans)
 - Accepts optional `logger=None`; calls `logger.event()` on `on()` and `off()`
-- All unit tests pass on hardware
+- Accepts optional `current_monitor=None` (INA219 on 12V rail)
+- `on()` calls `verify_running(300, 900)` 50ms after enabling fans
+- `verify_running(min_mA, max_mA)`: checks 12V rail current; logs WARN if out of range; returns None if no monitor
+- All unit tests pass on hardware; current monitoring tests (9-11) added, require INA219 on I2C
 
 ---
 
@@ -61,7 +66,8 @@ Controls the 80mm Foxconn PVA080G12Q exhaust fan.
 
 Wraps the MicroPython SPI sdcard driver and `uos.mount()`.
 
-- SPI0 at 400 kHz init speed (GP2=SCK, GP3=MOSI, GP4=MISO, GP5=CS)
+- SPI0 at 400 kHz init speed (GP2=SCK, GP3=MOSI, GP4=MISO, GP5=CS) — pin constants
+  were briefly transposed (MISO/SCK swapped) causing a "bad SDK pin" error; corrected
 - CS pin driven HIGH before SPI is initialised (prevents spurious transactions)
 - Uses `uos.VfsFat(sd)` wrapper before `uos.mount()` (required in MicroPython 1.20+)
 - Imports the raw driver as `sdcard_driver` (not `sdcard`) to avoid a naming
@@ -82,12 +88,14 @@ mpremote cp sdcard_driver.py :sdcard_driver.py
 mpremote cp lib/sdcard.py :lib/sdcard.py
 ```
 
+**Deployment script:** `update_lib.py` at repo root copies all files from `lib/`
+to `/lib/` on the Pico in one step: `python update_lib.py`
+
 ---
 
 ## lib/logger.py
 
-Single logging service for the entire kiln firmware. Written to spec; not yet
-tested on hardware (blocked by SD card issue above).
+Single logging service for the entire kiln firmware.
 
 - Owns one `SDCard` instance passed in at construction
 - `begin_run()`: mounts SD, creates `event_YYYYMMDD_HHMM.txt` and
@@ -122,6 +130,10 @@ worth noting:
 - **All modules use dependency injection for logger:** Modules accept
   `logger=None` in `__init__` and call `logger.event()` only when provided.
   Logger is never imported directly by hardware modules.
+- **ASCII only in all strings:** All print statements, logger calls, comments,
+  and docstrings use ASCII characters only. No Unicode (em/en dashes, arrows,
+  degree/ohm signs, etc.). Use `-`, `->`, `deg`, `ohm` etc. as substitutes.
+  Enforced across all `.py` files.
 
 ---
 
@@ -133,12 +145,31 @@ Controls 2× MG90S servos driving butterfly-style intake and exhaust dampers.
 - Both servos always commanded together (open or closed)
 - PWM de-energized after each move (deinit after 600ms travel time) to prevent
   holding torque, buzz, and heat; PWM objects re-initialised on every move
-- `open()` → duty 6225 (1.9 ms pulse); `close()` → duty 3604 (1.1 ms pulse)
-- Pulse range inset from 1.0–2.0 ms spec to protect homemade linkage
+- `open()` -> duty 6225 (1.9 ms pulse); `close()` -> duty 3604 (1.1 ms pulse)
+- Pulse range inset from 1.0-2.0 ms spec to protect homemade linkage
 - `is_open()` reflects last commanded position (no position sensing hardware)
 - `__init__` calls `close()` so physical position matches software state at boot
 - Accepts optional `logger=None`; calls `logger.event("vents", ...)` on open/close
-- All unit tests pass on hardware
+- Accepts optional `current_monitor=None` (INA219 on 5V rail)
+- `_move()` samples 5V rail current at mid-travel (300ms in) and caches in `_last_movement_mA`
+- `verify_position(min_mA, max_mA)`: checks cached mid-travel current; fault threshold >600mA (stall/jam); returns None if no monitor or no move made yet
+- All unit tests pass on hardware; current monitoring tests (5-7) added, require INA219 on I2C
+
+---
+
+## lib/current.py
+
+Reads DC current, bus voltage, and power from INA219 modules via I2C0.
+
+- Two instances: 0x40 for 12V rail, 0x41 for 5V rail
+- Raw I2C register access - no external library
+- Calibrated for 0.1ohm shunt: Cal=0x1000, Current LSB=0.1mA, Power LSB=2mW
+- `read()` returns dict with `bus_voltage_V`, `current_mA`, `power_mW`, `label`; returns `None` on I2C failure
+- `check_range(min_mA, max_mA)` returns True/False/None; logs WARN if out of range
+- Accepts `logger=None`; uses source `"current_12v"` / `"current_5v"`
+- I2C instance passed in - not created internally (shared with SHT31 when built)
+- Silent fail: init errors printed to REPL; `read()` returns None on exception
+- Basic hardware test confirmed passing
 
 ---
 
@@ -150,9 +181,9 @@ In rough priority order:
    temp + RH readings
 2. **Heater** (`lib/heater.py`) — SSR on GP18, simple digital on/off with safety
    interlock logic
-4. **Moisture probes** (`lib/moisture.py`) — ADC on GP26/GP27, AC excitation on
+3. **Moisture probes** (`lib/moisture.py`) — ADC on GP26/GP27, AC excitation on
    GP12/GP13
-5. **Display** (`lib/display.py`) — UART1 on GP8/GP9
-6. **Wi-Fi / REST API** — AP mode, HTTP server, time sync, mobile app interface
-7. **Drying schedule controller** — multi-stage logic consuming sensor readings
-8. **`main.py`** — entry point wiring all modules together
+4. **Display** (`lib/display.py`) — UART1 on GP8/GP9
+5. **Wi-Fi / REST API** — AP mode, HTTP server, time sync, mobile app interface
+6. **Drying schedule controller** — multi-stage logic consuming sensor readings
+7. **`main.py`** — entry point wiring all modules together

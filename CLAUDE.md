@@ -31,29 +31,35 @@ them rather than making assumptions.
 
 ### GPIO map
 
-| GPIO | Function |
-|---|---|
-| GP0 | I²C0 SDA — SHT31 ×2 |
-| GP1 | I²C0 SCL — SHT31 ×2 |
-| GP2 | SPI0 SCK — SD card |
-| GP3 | SPI0 TX (MOSI) — SD card |
-| GP4 | SPI0 RX (MISO) — SD card |
-| GP5 | SPI0 CS — SD card |
-| GP8 | UART1 TX — display |
-| GP9 | UART1 RX — display |
-| GP12 | Digital OUT — moisture probe AC excitation ch1 |
-| GP13 | Digital OUT — moisture probe AC excitation ch2 |
-| GP14 | PWM — intake vent servo |
-| GP15 | PWM — exhaust vent servo |
-| GP16 | PWM — exhaust fan |
-| GP17 | PWM — circulation fans (×3 shared) |
-| GP18 | Digital OUT — SSR heater control |
-| GP19 | Digital OUT — circulation fan MOSFET gate |
-| GP21 | Digital OUT — exhaust fan MOSFET gate |
-| GP22 | Digital IN — exhaust fan tach |
-| GP26 | ADC0 — moisture probe ch1 |
-| GP27 | ADC1 — moisture probe ch2 |
-| GP28 | ADC2 — spare |
+Here's the GPIO map section ready to drop into CLAUDE.md:
+markdown## Pico 2 W GPIO Map
+
+| GPIO | Physical Pin | Function | Connected To |
+|------|-------------|----------|--------------|
+| GP0 | Pin 1 | I²C0 SDA | SHT31 #1 + SHT31 #2 + INA219 12V (0x40) + INA219 5V (0x41) — shared I²C bus. SHT31 addresses TBD. |
+| GP1 | Pin 2 | I²C0 SCL | SHT31 #1 + SHT31 #2 + INA219 12V (0x40) + INA219 5V (0x41) — shared I²C bus. SHT31 addresses TBD. |
+| GP2 | Pin 4 | SPI0 MISO | Micro SD card module |
+| GP3 | Pin 5 | SPI0 MOSI | Micro SD card module |
+| GP4 | Pin 6 | SPI0 SCK | Micro SD card module |
+| GP5 | Pin 7 | SPI0 CS | Micro SD card module chip select |
+| GP8 | Pin 11 | UART1 TX | JC035 display RX (3.5" UART serial display) |
+| GP9 | Pin 12 | UART1 RX | JC035 display TX (3.5" UART serial display) |
+| GP12 | Pin 16 | Digital OUT | Moisture probe AC excitation Ch1 — polarity flip to prevent corrosion |
+| GP13 | Pin 17 | Digital OUT | Moisture probe AC excitation Ch2 — polarity flip to prevent corrosion |
+| GP14 | Pin 19 | PWM | MG90S servo — intake vent flap |
+| GP15 | Pin 20 | PWM | MG90S servo — exhaust vent flap |
+| GP16 | Pin 21 | Digital OUT / PWM | Exhaust fan PWM — Foxconn PVA080G12Q 80mm |
+| GP17 | Pin 22 | Digital OUT / PWM | Circulation fan PWM — 3× TL-C12C 120mm |
+| GP18 | Pin 24 | Digital OUT | SSR control — Fotek SSR-25DA → 120V backup heater |
+| GP19 | Pin 25 | Digital OUT | FQP30N06L MOSFET gate — circulation fan on/off |
+| GP21 | Pin 27 | Digital OUT | FQP30N06L MOSFET gate — exhaust fan on/off |
+| GP22 | Pin 29 | Digital IN | Exhaust fan tach — falling-edge IRQ, 10kΩ pull-up + 104 cap to GND |
+| GP26 | Pin 31 | ADC0 | Moisture probe Ch1 (maple) — 100kΩ voltage divider |
+| GP27 | Pin 32 | ADC1 | Moisture probe Ch2 (beech) — 100kΩ voltage divider |
+| GP28 | Pin 34 | ADC2 | Spare — ambient reference or future sensor |
+| VBUS | Pin 40 | 5V input | LM2596 buck converter output (fed by 12V wall brick) |
+| GND | Pin 38 | Ground | Common ground — 12V wall brick GND rail |
+
 
 ---
 
@@ -109,8 +115,12 @@ logger directly — it is always passed in.
   seconds from `time.ticks_ms()`
 - No third-party packages
 - f-strings are fine (MicroPython supports them)
+- **ASCII only in all strings:** use only ASCII characters in print statements,
+  logging calls, comments, and docstrings. No em dashes (`—`), en dashes (`–`),
+  arrows (`→`, `←`), degree signs (`°`), ohm signs (`Ω`), or any other non-ASCII.
+  Use `-`, `->`, `<-`, `deg`, `ohm` etc. as substitutes.
 - Silent fail pattern: wrap hardware calls in try/except, print warning to REPL,
-  continue — never crash the kiln over a peripheral failure
+  continue - never crash the kiln over a peripheral failure
 
 ---
 

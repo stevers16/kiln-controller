@@ -4,20 +4,20 @@
 # Provides a clean interface for logger.py to depend on.
 #
 # Wiring summary (SPI0):
-#   GP2  → SCK
-#   GP3  → MOSI (TX)
-#   GP4  → MISO (RX)
-#   GP5  → CS
+#   GP2  -> SCK
+#   GP3  -> MOSI (TX)
+#   GP4  -> MISO (RX)
+#   GP5  -> CS
 
 import machine
 import uos
 
 # --- Constants ---
-SCK_PIN    = 2
-MOSI_PIN   = 3
-MISO_PIN   = 4
-CS_PIN     = 5
-SPI_FREQ   = 400_000     # 400 kHz — SD spec max during card initialisation
+MISO_PIN = 4
+MOSI_PIN = 3
+SCK_PIN = 2
+CS_PIN = 5
+SPI_FREQ = 400_000  # 400 kHz - SD spec max during card initialisation
 
 
 class SDCard:
@@ -26,8 +26,9 @@ class SDCard:
     Silent fail with REPL warning if SD is unavailable.
     """
 
-    def __init__(self, sck=SCK_PIN, mosi=MOSI_PIN, miso=MISO_PIN, cs=CS_PIN,
-                 mount_point="/sd"):
+    def __init__(
+        self, sck=SCK_PIN, mosi=MOSI_PIN, miso=MISO_PIN, cs=CS_PIN, mount_point="/sd"
+    ):
         self._sck = sck
         self._mosi = mosi
         self._miso = miso
@@ -44,20 +45,24 @@ class SDCard:
             # or /lib/sdcard_driver.py).  It must NOT be named sdcard.py or the import below
             # will resolve to this wrapper file and fail.
             import sdcard_driver as _drv
+
             # CS must be driven HIGH before SPI is initialised to prevent
             # spurious transactions that confuse the card's state machine.
             cs = machine.Pin(self._cs, machine.Pin.OUT, value=1)
-            spi = machine.SPI(0, baudrate=SPI_FREQ,
-                              sck=machine.Pin(self._sck),
-                              mosi=machine.Pin(self._mosi),
-                              miso=machine.Pin(self._miso))
+            spi = machine.SPI(
+                0,
+                baudrate=SPI_FREQ,
+                sck=machine.Pin(self._sck),
+                mosi=machine.Pin(self._mosi),
+                miso=machine.Pin(self._miso),
+            )
             sd = _drv.SDCard(spi, cs)
             vfs = uos.VfsFat(sd)
             uos.mount(vfs, self._mount_point)
             self._mounted = True
             return True
         except Exception as e:
-            print(f"[sdcard] WARNING: mount failed — {e}")
+            print(f"[sdcard] WARNING: mount failed - {e}")
             return False
 
     def unmount(self):
@@ -67,7 +72,7 @@ class SDCard:
         try:
             uos.umount(self._mount_point)
         except Exception as e:
-            print(f"[sdcard] WARNING: unmount failed — {e}")
+            print(f"[sdcard] WARNING: unmount failed - {e}")
         self._mounted = False
 
     def is_mounted(self):
@@ -87,11 +92,15 @@ class SDCard:
         """
         if not self._mounted:
             return []
-        path = self._mount_point if not subdir else f"{self._mount_point}/{subdir.strip('/')}"
+        path = (
+            self._mount_point
+            if not subdir
+            else f"{self._mount_point}/{subdir.strip('/')}"
+        )
         try:
             return sorted(uos.listdir(path))
         except Exception as e:
-            print(f"[sdcard] WARNING: listdir failed — {e}")
+            print(f"[sdcard] WARNING: listdir failed - {e}")
             return []
 
     def read_text(self, filename):
@@ -107,7 +116,7 @@ class SDCard:
             with open(path, "r") as f:
                 return f.read()
         except Exception as e:
-            print(f"[sdcard] WARNING: read_text failed — {e}")
+            print(f"[sdcard] WARNING: read_text failed - {e}")
             return None
 
 
@@ -120,18 +129,18 @@ def test():
     # --- Test 1: mount() ---
     result = sd.mount()
     passed = result is True
-    print(f"  {'PASS' if passed else 'FAIL'} — mount() returns True")
+    print(f"  {'PASS' if passed else 'FAIL'} - mount() returns True")
     all_passed &= passed
 
     # --- Test 2: is_mounted() after mount ---
     passed = sd.is_mounted()
-    print(f"  {'PASS' if passed else 'FAIL'} — is_mounted() True after mount")
+    print(f"  {'PASS' if passed else 'FAIL'} - is_mounted() True after mount")
     all_passed &= passed
 
     # --- Test 3: /sd appears in root listing ---
     dirs = uos.listdir("/")
     passed = "sd" in dirs
-    print(f"  {'PASS' if passed else 'FAIL'} — /sd appears in uos.listdir('/')")
+    print(f"  {'PASS' if passed else 'FAIL'} - /sd appears in uos.listdir('/')")
     all_passed &= passed
 
     # --- Test 4: write and read back a test file ---
@@ -148,12 +157,14 @@ def test():
     except Exception as e:
         print(f"    (error: {e})")
         passed = False
-    print(f"  {'PASS' if passed else 'FAIL'} — can write and read back a test file")
+    print(f"  {'PASS' if passed else 'FAIL'} - can write and read back a test file")
     all_passed &= passed
 
     # --- Test 5: listdir() returns filenames ---
     files = sd.listdir()
-    passed = isinstance(files, list) and "test_sdcard.txt" not in files  # we removed it above
+    passed = (
+        isinstance(files, list) and "test_sdcard.txt" not in files
+    )  # we removed it above
     # Write two files so we can verify listing
     uos.mkdir(sd.mount_point + "/subdir") if "subdir" not in sd.listdir() else None
     for name in ("aaa.txt", "zzz.txt"):
@@ -161,7 +172,7 @@ def test():
             f.write("x")
     files = sd.listdir()
     passed = "aaa.txt" in files and "zzz.txt" in files and files == sorted(files)
-    print(f"  {'PASS' if passed else 'FAIL'} — listdir() returns sorted filenames")
+    print(f"  {'PASS' if passed else 'FAIL'} - listdir() returns sorted filenames")
     all_passed &= passed
 
     # --- Test 6: listdir(subdir) ---
@@ -169,7 +180,9 @@ def test():
         f.write("inner")
     sub_files = sd.listdir("subdir")
     passed = sub_files == ["inner.txt"]
-    print(f"  {'PASS' if passed else 'FAIL'} — listdir('subdir') returns subdir contents")
+    print(
+        f"  {'PASS' if passed else 'FAIL'} - listdir('subdir') returns subdir contents"
+    )
     all_passed &= passed
 
     # --- Test 7: read_text() returns file contents ---
@@ -177,13 +190,15 @@ def test():
         f.write("hello kiln")
     content = sd.read_text("read_test.txt")
     passed = content == "hello kiln"
-    print(f"  {'PASS' if passed else 'FAIL'} — read_text() returns file contents")
+    print(f"  {'PASS' if passed else 'FAIL'} - read_text() returns file contents")
     all_passed &= passed
 
     # --- Test 8: read_text() returns None for missing file ---
     content = sd.read_text("does_not_exist.txt")
     passed = content is None
-    print(f"  {'PASS' if passed else 'FAIL'} — read_text() returns None for missing file")
+    print(
+        f"  {'PASS' if passed else 'FAIL'} - read_text() returns None for missing file"
+    )
     all_passed &= passed
 
     # Clean up test files
@@ -201,12 +216,12 @@ def test():
     # --- Test 9: unmount() ---
     sd.unmount()
     passed = True  # No exception means success
-    print(f"  {'PASS' if passed else 'FAIL'} — unmount() succeeds")
+    print(f"  {'PASS' if passed else 'FAIL'} - unmount() succeeds")
     all_passed &= passed
 
     # --- Test 10: is_mounted() after unmount ---
     passed = not sd.is_mounted()
-    print(f"  {'PASS' if passed else 'FAIL'} — is_mounted() False after unmount")
+    print(f"  {'PASS' if passed else 'FAIL'} - is_mounted() False after unmount")
     all_passed &= passed
 
     print(f"\n{'All tests passed!' if all_passed else 'Some tests FAILED'}")

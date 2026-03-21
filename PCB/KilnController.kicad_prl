@@ -1,6 +1,6 @@
 {
   "board": {
-    "active_layer": 2,
+    "active_layer": 0,
     "active_layer_preset": "",
     "auto_track_width": true,
     "hidden_netclasses": [],
@@ -116,39 +116,15 @@
   "project": {
     "files": [
       {
-        "name": "KilnController.kicad_sch",
-        "open": true,
-        "window": {
-          "display": 0,
-          "maximized": true,
-          "pos_x": -9,
-          "pos_y": -9,
-          "size_x": 2578,
-          "size_y": 1398
-        }
-      },
-      {
         "name": "KilnController.kicad_pcb",
-        "open": true,
-        "window": {
-          "display": 0,
-          "maximized": true,
-          "pos_x": -9,
-          "pos_y": -9,
-          "size_x": 2578,
-          "size_y": 1398
-        }
-      },
-      {
-        "name": "KilnController.kicad_pro",
         "open": false,
         "window": {
           "display": 0,
-          "maximized": false,
-          "pos_x": 709,
-          "pos_y": 283,
-          "size_x": 1142,
-          "size_y": 813
+          "maximized": true,
+          "pos_x": -9,
+          "pos_y": -9,
+          "size_x": 2578,
+          "size_y": 1398
         }
       }
     ]

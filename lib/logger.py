@@ -5,7 +5,7 @@
 # logging (CSV) for a drying run.
 #
 # Both log files live on the SD card. Silent fail with REPL warning
-# if SD is unavailable — the kiln must keep running regardless.
+# if SD is unavailable - the kiln must keep running regardless.
 
 import time
 
@@ -63,7 +63,7 @@ class Logger:
         Returns True on success, False if SD is unavailable.
         """
         if not self._sd.mount():
-            print("[logger] WARNING: SD mount failed — logging disabled")
+            print("[logger] WARNING: SD mount failed - logging disabled")
             return False
 
         suffix = self._file_suffix()
@@ -81,7 +81,7 @@ class Logger:
             self.event("logger", "Run started")
             return True
         except Exception as e:
-            print(f"[logger] WARNING: Failed to create log files — {e}")
+            print(f"[logger] WARNING: Failed to create log files - {e}")
             self._close_files()
             return False
 
@@ -113,7 +113,7 @@ class Logger:
                 self._event_file.write(line + "\n")
                 self._event_file.flush()
             except Exception as e:
-                print(f"[logger] WARNING: SD write failed — {e}")
+                print(f"[logger] WARNING: SD write failed - {e}")
 
     def data(self, record):
         """
@@ -140,7 +140,7 @@ class Logger:
             self._data_file.write(line + "\n")
             self._data_file.flush()
         except Exception as e:
-            print(f"[logger] WARNING: SD write failed — {e}")
+            print(f"[logger] WARNING: SD write failed - {e}")
 
     @property
     def run_active(self):
@@ -177,12 +177,12 @@ def test():
     # --- Test 1: begin_run() ---
     result = logger.begin_run()
     passed = result is True
-    print(f"  {'PASS' if passed else 'FAIL'} — begin_run() returns True")
+    print(f"  {'PASS' if passed else 'FAIL'} - begin_run() returns True")
     all_passed &= passed
 
     # --- Test 2: run_active ---
     passed = logger.run_active is True
-    print(f"  {'PASS' if passed else 'FAIL'} — run_active is True")
+    print(f"  {'PASS' if passed else 'FAIL'} - run_active is True")
     all_passed &= passed
 
     # Find the log files on SD
@@ -192,12 +192,12 @@ def test():
 
     # --- Test 3: event log file exists ---
     passed = len(event_files) > 0
-    print(f"  {'PASS' if passed else 'FAIL'} — event log file exists on SD")
+    print(f"  {'PASS' if passed else 'FAIL'} - event log file exists on SD")
     all_passed &= passed
 
     # --- Test 4: data log file exists ---
     passed = len(data_files) > 0
-    print(f"  {'PASS' if passed else 'FAIL'} — data log file exists on SD")
+    print(f"  {'PASS' if passed else 'FAIL'} - data log file exists on SD")
     all_passed &= passed
 
     # --- Test 5: event() writes correctly formatted line ---
@@ -208,7 +208,7 @@ def test():
         lines = f.readlines()
     last_line = lines[-1].strip()
     passed = "[INFO ]" in last_line and "[exhaust   ]" in last_line and "Fan on at 75%" in last_line
-    print(f"  {'PASS' if passed else 'FAIL'} — event() writes correctly formatted line")
+    print(f"  {'PASS' if passed else 'FAIL'} - event() writes correctly formatted line")
     all_passed &= passed
 
     # --- Test 6: event() with WARN level ---
@@ -217,7 +217,7 @@ def test():
         lines = f.readlines()
     last_line = lines[-1].strip()
     passed = "[WARN ]" in last_line and "[sdcard    ]" in last_line
-    print(f"  {'PASS' if passed else 'FAIL'} — event() with WARN level")
+    print(f"  {'PASS' if passed else 'FAIL'} - event() with WARN level")
     all_passed &= passed
 
     # --- Test 7: data() writes CSV row with correct columns ---
@@ -242,7 +242,7 @@ def test():
         lines = f.readlines()
     # First line is header, second is our row
     passed = len(lines) == 2 and "45.12" in lines[1] and ",1," in lines[1]
-    print(f"  {'PASS' if passed else 'FAIL'} — data() writes CSV row with correct columns")
+    print(f"  {'PASS' if passed else 'FAIL'} - data() writes CSV row with correct columns")
     all_passed &= passed
 
     # --- Test 8: data() with partial record ---
@@ -252,18 +252,18 @@ def test():
     last_row = lines[-1].strip()
     fields = last_row.split(",")
     passed = len(fields) == len(DATA_COLUMNS) and fields[0] == "2026-03-17 14:31:00" and fields[2] == ""
-    print(f"  {'PASS' if passed else 'FAIL'} — data() with partial record (missing keys write empty)")
+    print(f"  {'PASS' if passed else 'FAIL'} - data() with partial record (missing keys write empty)")
     all_passed &= passed
 
     # --- Test 9: end_run() ---
     logger.end_run()
     passed = True  # No exception
-    print(f"  {'PASS' if passed else 'FAIL'} — end_run() closes cleanly")
+    print(f"  {'PASS' if passed else 'FAIL'} - end_run() closes cleanly")
     all_passed &= passed
 
     # --- Test 10: run_active after end_run ---
     passed = logger.run_active is False
-    print(f"  {'PASS' if passed else 'FAIL'} — run_active is False after end_run")
+    print(f"  {'PASS' if passed else 'FAIL'} - run_active is False after end_run")
     all_passed &= passed
 
     # --- Test 11: begin_run() can be called again ---
@@ -272,7 +272,7 @@ def test():
     result = logger2.begin_run()
     passed = result is True and logger2.run_active
     logger2.end_run()
-    print(f"  {'PASS' if passed else 'FAIL'} — begin_run() can be called again (second run)")
+    print(f"  {'PASS' if passed else 'FAIL'} - begin_run() can be called again (second run)")
     all_passed &= passed
 
     print(f"\n{'All tests passed!' if all_passed else 'Some tests FAILED'}")
