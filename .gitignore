@@ -1,0 +1,24 @@
+# KiCad auto-generated and temporary files
+*.kicad_pcb-bak
+*.kicad_sch-bak
+*.kicad_pro-bak
+*-backups/
+_autosave-*
+*.lck
+fp-info-cache
+
+# KiCad export outputs (regenerate as needed)
+gerbers/
+*.gbr
+*.drl
+*.dxf
+*.svg
+*.pdf
+*.pos
+*.rpt
+*.xml
+*.cmp
+
+# Python
+__pycache__/
+*.pyc
