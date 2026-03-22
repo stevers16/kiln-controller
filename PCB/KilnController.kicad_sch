@@ -4005,6 +4005,16 @@
 		)
 		(uuid "742d62a5-9c1b-472b-955b-f19bc4e87996")
 	)
+	(label "HEATER_SSR"
+		(at 78.74 107.95 0)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left bottom)
+		)
+		(uuid "7854a0ed-441b-469f-9b4c-445844904f48")
+	)
 	(label "FAN_CIR_GATE"
 		(at 78.74 105.41 0)
 		(effects
@@ -4314,6 +4324,16 @@
 			(justify right bottom)
 		)
 		(uuid "fef91eec-3709-4d61-949e-64e88ae14487")
+	)
+	(label "HEATER_SSR"
+		(at 173.99 92.71 270)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify right bottom)
+		)
+		(uuid "ff46d77d-698b-40a0-8a52-1c9fe687c6ee")
 	)
 	(symbol
 		(lib_id "KilnSymbols:INA219_Current_Sensor_Module")
@@ -5095,6 +5115,73 @@
 			(project "KilnController"
 				(path "/c3036073-6461-4b90-ba15-ffed45812946"
 					(reference "#PWR015")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
+		(lib_id "Connector:Screw_Terminal_01x02")
+		(at 173.99 87.63 90)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(uuid "3575fad3-0935-45d2-8ca1-95b855dee840")
+		(property "Reference" "J9"
+			(at 175.006 80.518 90)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Value" "Heater SSR Header"
+			(at 175.26 83.058 90)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Footprint" "TerminalBlock_MetzConnect:TerminalBlock_MetzConnect_Type101_RT01602HBWC_1x02_P5.08mm_Horizontal"
+			(at 173.99 87.63 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" "~"
+			(at 173.99 87.63 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Description" "Generic screw terminal, single row, 01x02, script generated (kicad-library-utils/schlib/autogen/connector/)"
+			(at 173.99 87.63 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(pin "2"
+			(uuid "4e9699b8-5d91-438a-8dc1-fa8752e1c8dd")
+		)
+		(pin "1"
+			(uuid "884f163d-d2b2-41c5-9e65-24a3aad5076b")
+		)
+		(instances
+			(project "KilnController"
+				(path "/c3036073-6461-4b90-ba15-ffed45812946"
+					(reference "J9")
 					(unit 1)
 				)
 			)
@@ -6263,6 +6350,72 @@
 			(project "KilnController"
 				(path "/c3036073-6461-4b90-ba15-ffed45812946"
 					(reference "J2")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
+		(lib_id "power:GND")
+		(at 176.53 92.71 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(fields_autoplaced yes)
+		(uuid "a5703d53-6fb5-4891-a7b1-56af5b6aa7cd")
+		(property "Reference" "#PWR024"
+			(at 176.53 99.06 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Value" "GND"
+			(at 176.53 97.79 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Footprint" ""
+			(at 176.53 92.71 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" ""
+			(at 176.53 92.71 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Description" "Power symbol creates a global label with name \"GND\" , ground"
+			(at 176.53 92.71 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(pin "1"
+			(uuid "6dfefec7-f645-4096-8b70-9e580dd06975")
+		)
+		(instances
+			(project "KilnController"
+				(path "/c3036073-6461-4b90-ba15-ffed45812946"
+					(reference "#PWR024")
 					(unit 1)
 				)
 			)

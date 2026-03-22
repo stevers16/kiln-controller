@@ -10,10 +10,11 @@ state of the software side of this project.
 
 ## Overall status
 
-Early firmware stage. Seven modules exist in `lib/`. No `main.py` yet. The logging
+Early firmware stage. Eight modules exist in `lib/`. No `main.py` yet. The logging
 stack is complete and fully tested on hardware. Vent servos are working. Current
 monitoring (INA219) is implemented and basic hardware test confirmed passing.
-SHT31 dual sensor module is implemented and tested on hardware.
+SHT31 dual sensor module is implemented and tested on hardware. Heater SSR driver
+is implemented, pending hardware test.
 
 ---
 
@@ -28,7 +29,8 @@ SHT31 dual sensor module is implemented and tested on hardware.
 | `lib/vents.py` | Complete | Yes — all tests pass |
 | `lib/current.py` | Complete | Basic test passing on hardware |
 | `lib/SHT31sensors.py` | Complete | Yes -- all tests pass |
-| `main.py` | Not written | — |
+| `lib/heater.py` | Complete | Yes -- all tests pass |
+| `main.py` | Not written | -- |
 
 ---
 
@@ -207,13 +209,27 @@ Reads temperature and relative humidity from two SHT31-D sensors over I2C.
 
 ---
 
+## lib/heater.py
+
+Controls the 500W backup ceramic PTC heater via a Fotek SSR-25DA solid-state relay.
+
+- SSR control pin on GP18 (digital output through 1k ohm current-limiting resistor)
+- Pin driven LOW at construction before anything else -- safe boot state
+- `on()` drives pin HIGH; `off()` drives pin LOW
+- `is_on()` returns software-tracked state (does not read GPIO)
+- No PWM or duty cycling -- simple on/off; temperature regulation is the controller's job
+- No current monitoring -- SSR switches 120V AC; INA219 monitors DC rails only
+- Hardware safety: RY85 85degC one-time thermal fuse on AC output (firmware not involved)
+- Accepts optional `logger=None`; calls `logger.event("heater", ...)` on init/on/off
+- Unit tests included in module; all 8 tests cover init state, on/off, double-call safety, logger events, and logger=None
+
+---
+
 ## What still needs building
 
 In rough priority order:
 
-1. **Heater** (`lib/heater.py`) -- SSR on GP18, simple digital on/off with safety
-   interlock logic
-2. **Moisture probes** (`lib/moisture.py`) -- ADC on GP26/GP27, AC excitation on
+1. **Moisture probes** (`lib/moisture.py`) -- ADC on GP26/GP27, AC excitation on
    GP12/GP13
 3. **Display** (`lib/display.py`) -- UART1 on GP8/GP9
 4. **Wi-Fi / REST API** -- AP mode, HTTP server, time sync, mobile app interface
