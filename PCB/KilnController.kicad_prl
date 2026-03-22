@@ -51,7 +51,7 @@
       "shapes"
     ],
     "visible_layers": "ffffffff_ffffffff_ffffffff_ffffffff",
-    "zone_display_mode": 0
+    "zone_display_mode": 1
   },
   "git": {
     "integration_disabled": false,
@@ -115,6 +115,18 @@
   "open_jobsets": [],
   "project": {
     "files": [
+      {
+        "name": "KilnController.kicad_sch",
+        "open": true,
+        "window": {
+          "display": 0,
+          "maximized": true,
+          "pos_x": -9,
+          "pos_y": -9,
+          "size_x": 2578,
+          "size_y": 1398
+        }
+      },
       {
         "name": "KilnController.kicad_pcb",
         "open": false,

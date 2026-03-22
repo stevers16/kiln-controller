@@ -41,7 +41,7 @@ Controls 3× 120mm 4-pin PWM circulation fans wired as a group.
 - `read_rpm()` returns `None` (no tach on these fans)
 - Accepts optional `logger=None`; calls `logger.event()` on `on()` and `off()`
 - Accepts optional `current_monitor=None` (INA219 on 12V rail)
-- `on()` calls `verify_running(300, 900)` 50ms after enabling fans
+- `on()` calls `verify_running(200, 500)` after 1s spin-up delay
 - `verify_running(min_mA, max_mA)`: checks 12V rail current; logs WARN if out of range; returns None if no monitor
 - All unit tests pass on hardware; current monitoring tests (9-11) added, require INA219 on I2C
 
@@ -170,6 +170,18 @@ Reads DC current, bus voltage, and power from INA219 modules via I2C0.
 - I2C instance passed in - not created internally (shared with SHT31 when built)
 - Silent fail: init errors printed to REPL; `read()` returns None on exception
 - Basic hardware test confirmed passing
+
+---
+
+## Measured hardware baselines
+
+Measured 2026-03-22 with INA219 modules.
+
+| Rail | Condition | Current | Notes |
+|------|-----------|---------|-------|
+| 12V (0x40) | Idle | 39 mA | Fans off, heater off |
+| 12V (0x40) | 3x circ fans at 75% | 200-500 mA | Expected operating range |
+| 5V (0x41) | Idle | 8 mA | Servos de-energized |
 
 ---
 

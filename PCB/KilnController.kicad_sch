@@ -1122,6 +1122,330 @@
 			)
 			(embedded_fonts no)
 		)
+		(symbol "KilnSymbols:INA219_Current_Sensor_Module"
+			(pin_names
+				(offset 1.524)
+			)
+			(exclude_from_sim no)
+			(in_bom yes)
+			(on_board yes)
+			(property "Reference" "U"
+				(at 0 7.62 0)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(property "Value" "INA219_Current_Sensor_Module"
+				(at 0 -10.16 0)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(property "Footprint" "KilnFootprintLibrary:INA219_Module"
+				(at 0 0 0)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+					(hide yes)
+				)
+			)
+			(property "Datasheet" "~"
+				(at 0 0 0)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+					(hide yes)
+				)
+			)
+			(property "Description" "INA219 Current Sensor Module"
+				(at 0 0 0)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+					(hide yes)
+				)
+			)
+			(property "ki_keywords" "Current Sensor"
+				(at 0 0 0)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+					(hide yes)
+				)
+			)
+			(property "ki_fp_filters" "Connector*:*_1x??_*"
+				(at 0 0 0)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+					(hide yes)
+				)
+			)
+			(symbol "INA219_Current_Sensor_Module_1_1"
+				(polyline
+					(pts
+						(xy -1.27 5.08) (xy -0.508 5.08)
+					)
+					(stroke
+						(width 0.1524)
+						(type default)
+					)
+					(fill
+						(type none)
+					)
+				)
+				(polyline
+					(pts
+						(xy -1.27 2.54) (xy -0.508 2.54)
+					)
+					(stroke
+						(width 0.1524)
+						(type default)
+					)
+					(fill
+						(type none)
+					)
+				)
+				(polyline
+					(pts
+						(xy -1.27 0) (xy -0.508 0)
+					)
+					(stroke
+						(width 0.1524)
+						(type default)
+					)
+					(fill
+						(type none)
+					)
+				)
+				(polyline
+					(pts
+						(xy -1.27 -2.54) (xy -0.508 -2.54)
+					)
+					(stroke
+						(width 0.1524)
+						(type default)
+					)
+					(fill
+						(type none)
+					)
+				)
+				(polyline
+					(pts
+						(xy -1.27 -5.08) (xy -0.508 -5.08)
+					)
+					(stroke
+						(width 0.1524)
+						(type default)
+					)
+					(fill
+						(type none)
+					)
+				)
+				(polyline
+					(pts
+						(xy -1.27 -7.62) (xy -0.508 -7.62)
+					)
+					(stroke
+						(width 0.1524)
+						(type default)
+					)
+					(fill
+						(type none)
+					)
+				)
+				(arc
+					(start 0 4.572)
+					(mid -0.5058 5.08)
+					(end 0 5.588)
+					(stroke
+						(width 0.1524)
+						(type default)
+					)
+					(fill
+						(type none)
+					)
+				)
+				(arc
+					(start 0 2.032)
+					(mid -0.5058 2.54)
+					(end 0 3.048)
+					(stroke
+						(width 0.1524)
+						(type default)
+					)
+					(fill
+						(type none)
+					)
+				)
+				(arc
+					(start 0 -0.508)
+					(mid -0.5058 0)
+					(end 0 0.508)
+					(stroke
+						(width 0.1524)
+						(type default)
+					)
+					(fill
+						(type none)
+					)
+				)
+				(arc
+					(start 0 -3.048)
+					(mid -0.5058 -2.54)
+					(end 0 -2.032)
+					(stroke
+						(width 0.1524)
+						(type default)
+					)
+					(fill
+						(type none)
+					)
+				)
+				(arc
+					(start 0 -5.588)
+					(mid -0.5058 -5.08)
+					(end 0 -4.572)
+					(stroke
+						(width 0.1524)
+						(type default)
+					)
+					(fill
+						(type none)
+					)
+				)
+				(arc
+					(start 0 -8.128)
+					(mid -0.5058 -7.62)
+					(end 0 -7.112)
+					(stroke
+						(width 0.1524)
+						(type default)
+					)
+					(fill
+						(type none)
+					)
+				)
+				(pin power_in line
+					(at -5.08 5.08 0)
+					(length 3.81)
+					(name "VCC"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "1"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+				(pin power_in line
+					(at -5.08 2.54 0)
+					(length 3.81)
+					(name "GND"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "2"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+				(pin input line
+					(at -5.08 0 0)
+					(length 3.81)
+					(name "SCL"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "3"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+				(pin bidirectional line
+					(at -5.08 -2.54 0)
+					(length 3.81)
+					(name "SDA"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "4"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+				(pin passive line
+					(at -5.08 -5.08 0)
+					(length 3.81)
+					(name "VIN-"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "5"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+				(pin passive line
+					(at -5.08 -7.62 0)
+					(length 3.81)
+					(name "VIN+"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "6"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+			)
+			(embedded_fonts no)
+		)
 		(symbol "KilnSymbols:LM2596_Module"
 			(pin_numbers
 				(hide yes)
@@ -2903,6 +3227,26 @@
 		)
 		(uuid "4e6bb12b-cadd-4070-a26e-68f095b17946")
 	)
+	(text_box "ADDR: 0x40"
+		(exclude_from_sim no)
+		(at 119.38 27.94 0)
+		(size 7.62 5.08)
+		(margins 0.9525 0.9525 0.9525 0.9525)
+		(stroke
+			(width 0)
+			(type solid)
+		)
+		(fill
+			(type none)
+		)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left top)
+		)
+		(uuid "89b68e9f-92a2-43b0-a37c-df32dd467b50")
+	)
 	(text_box "3× TL-C12C 120mm fans in parallel"
 		(exclude_from_sim no)
 		(at 264.16 73.66 0)
@@ -2922,6 +3266,26 @@
 			(justify left top)
 		)
 		(uuid "b7f98842-b4ec-4cca-8f09-e8ec4dd5fb12")
+	)
+	(text_box "ADDR: 0x41"
+		(exclude_from_sim no)
+		(at 152.4 27.94 0)
+		(size 7.62 5.08)
+		(margins 0.9525 0.9525 0.9525 0.9525)
+		(stroke
+			(width 0)
+			(type solid)
+		)
+		(fill
+			(type none)
+		)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left top)
+		)
+		(uuid "df661f8b-4ab1-4209-907c-f7c4ec1df153")
 	)
 	(junction
 		(at 91.44 33.02)
@@ -3371,6 +3735,16 @@
 		)
 		(uuid "fe7d06ab-c071-44d8-a42d-7a2ed4146b71")
 	)
+	(label "I2C0_SDA"
+		(at 137.16 35.56 270)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify right bottom)
+		)
+		(uuid "0e32d2f6-cca0-418c-83e1-1763dd5c8074")
+	)
 	(label "+3V3"
 		(at 156.21 87.63 0)
 		(effects
@@ -3380,6 +3754,16 @@
 			(justify left bottom)
 		)
 		(uuid "0e9224b7-9b1d-435f-82e9-61f07180fc62")
+	)
+	(label "+12V_SRC"
+		(at 142.24 35.56 270)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify right bottom)
+		)
+		(uuid "123ea610-41a3-44ea-b58f-008c1aa35451")
 	)
 	(label "SD_SCK"
 		(at 201.93 31.75 270)
@@ -3421,6 +3805,16 @@
 		)
 		(uuid "1e960371-01db-49a0-85ff-b55945dc30c2")
 	)
+	(label "I2C0_SCL"
+		(at 167.64 35.56 270)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify right bottom)
+		)
+		(uuid "2603644e-9973-4da0-8166-e88472e04e45")
+	)
 	(label "+5V"
 		(at 194.31 31.75 270)
 		(effects
@@ -3430,6 +3824,16 @@
 			(justify right bottom)
 		)
 		(uuid "2d9d49cc-7bea-47f1-8055-6c285809dde6")
+	)
+	(label "+12V"
+		(at 139.7 35.56 270)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify right bottom)
+		)
+		(uuid "3407cad4-a03f-493f-99fa-22f433babe7e")
 	)
 	(label "FAN_EX_GATE"
 		(at 156.21 107.95 0)
@@ -3450,6 +3854,16 @@
 			(justify left bottom)
 		)
 		(uuid "406cb535-0dd5-4db7-a628-76e3fd745b93")
+	)
+	(label "I2C0_SDA"
+		(at 125.73 74.93 180)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify right bottom)
+		)
+		(uuid "42fa46d8-0d21-4a0e-8a81-dea8ee07b5a7")
 	)
 	(label "+3V3"
 		(at 259.08 40.64 0)
@@ -3481,7 +3895,7 @@
 		)
 		(uuid "57248a60-5e3c-4aa1-bc33-daf7ca35b861")
 	)
-	(label "+12V"
+	(label "+12V_SRC"
 		(at 48.26 34.29 0)
 		(effects
 			(font
@@ -3581,6 +3995,26 @@
 		)
 		(uuid "8901758d-85e6-4a41-9057-a8484ea60440")
 	)
+	(label "I2C0_SDA"
+		(at 170.18 35.56 270)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify right bottom)
+		)
+		(uuid "9029ec69-1695-40a1-aa72-bb0976e89196")
+	)
+	(label "I2C0_SCL"
+		(at 125.73 77.47 180)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify right bottom)
+		)
+		(uuid "915aa9fe-ed6e-4daa-89f9-ce3c9b9b2c7c")
+	)
 	(label "+3V3"
 		(at 156.21 85.09 0)
 		(effects
@@ -3590,6 +4024,16 @@
 			(justify left bottom)
 		)
 		(uuid "93168993-8a3a-43b3-ae07-a34aa5d039c7")
+	)
+	(label "+5V_SRC"
+		(at 175.26 35.56 270)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify right bottom)
+		)
+		(uuid "944b8bf2-d050-4c5e-a908-79ffbf09a30a")
 	)
 	(label "SD_CS"
 		(at 204.47 31.75 270)
@@ -3642,6 +4086,26 @@
 		(uuid "9ca0085c-0ee2-4c5e-9ab9-702a977b177c")
 	)
 	(label "+5V"
+		(at 162.56 35.56 270)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify right bottom)
+		)
+		(uuid "ada87ebf-be93-4518-a9aa-27aabace1e6f")
+	)
+	(label "I2C0_SCL"
+		(at 134.62 35.56 270)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify right bottom)
+		)
+		(uuid "ae8cab3f-d2c6-4dc4-8b44-8eb6f3b8c102")
+	)
+	(label "+5V_SRC"
 		(at 101.6 33.02 0)
 		(effects
 			(font
@@ -3730,6 +4194,184 @@
 			(justify right bottom)
 		)
 		(uuid "df5a84a5-7032-4a8e-89d6-7d27fe7515ec")
+	)
+	(label "+5V"
+		(at 129.54 35.56 270)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify right bottom)
+		)
+		(uuid "e1f0fbe9-9c36-45da-abfa-32bfb3c6a077")
+	)
+	(label "+5V"
+		(at 172.72 35.56 270)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify right bottom)
+		)
+		(uuid "f5123fa3-600b-441c-8d97-63f9817559dc")
+	)
+	(symbol
+		(lib_id "KilnSymbols:INA219_Current_Sensor_Module")
+		(at 134.62 30.48 90)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(uuid "01c6cbda-a503-4759-9c8a-d6c89417510e")
+		(property "Reference" "U2"
+			(at 135.89 21.336 90)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Value" "INA219 Current Sensor (12V)"
+			(at 135.89 23.876 90)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Footprint" "KilnFootprintLibrary:INA219_Module"
+			(at 134.62 30.48 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" "~"
+			(at 134.62 30.48 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Description" "INA219 Current Sensor Module"
+			(at 134.62 30.48 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(pin "1"
+			(uuid "3baf5815-7182-4edf-b303-3e9e637833cd")
+		)
+		(pin "3"
+			(uuid "6723f77c-ba2c-4138-90fd-e51f8fbe0773")
+		)
+		(pin "2"
+			(uuid "c21da830-f90c-4c5a-8a37-d48e628f1e9a")
+		)
+		(pin "6"
+			(uuid "06de2245-6c38-4e2e-9fb8-d03c17abd60c")
+		)
+		(pin "4"
+			(uuid "378817c3-c528-4177-85c7-7b4f8fd526ab")
+		)
+		(pin "5"
+			(uuid "77ca2a44-b175-4aca-aa72-905a6bf5868e")
+		)
+		(instances
+			(project "KilnController"
+				(path "/c3036073-6461-4b90-ba15-ffed45812946"
+					(reference "U2")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
+		(lib_id "KilnSymbols:INA219_Current_Sensor_Module")
+		(at 167.64 30.48 90)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(uuid "021437cb-4479-42c5-a972-f6edfcf83744")
+		(property "Reference" "U3"
+			(at 168.91 21.336 90)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Value" "INA219 Current Sensor (5V)"
+			(at 168.91 23.876 90)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Footprint" "KilnFootprintLibrary:INA219_Module"
+			(at 167.64 30.48 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" "~"
+			(at 167.64 30.48 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Description" "INA219 Current Sensor Module"
+			(at 167.64 30.48 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(pin "1"
+			(uuid "7dfa8bed-7b26-4245-9dbf-ef21cae673a6")
+		)
+		(pin "3"
+			(uuid "b6204ba9-71f0-4078-84f7-60233642abfd")
+		)
+		(pin "2"
+			(uuid "3b68e052-317f-41e5-80bd-e56770b53ed2")
+		)
+		(pin "6"
+			(uuid "34128df3-40e2-44ea-943a-dcc79da5fa1c")
+		)
+		(pin "4"
+			(uuid "f3ad02e6-3236-434e-813d-2623d4e7bed8")
+		)
+		(pin "5"
+			(uuid "b3fa2dc1-ef30-4e97-9bc8-efa1b6c2df5c")
+		)
+		(instances
+			(project "KilnController"
+				(path "/c3036073-6461-4b90-ba15-ffed45812946"
+					(reference "U3")
+					(unit 1)
+				)
+			)
+		)
 	)
 	(symbol
 		(lib_id "power:GND")
@@ -5313,6 +5955,72 @@
 		)
 	)
 	(symbol
+		(lib_id "power:GND")
+		(at 132.08 35.56 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(fields_autoplaced yes)
+		(uuid "b0eac358-85de-4d9b-a319-0357473357dc")
+		(property "Reference" "#PWR020"
+			(at 132.08 41.91 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Value" "GND"
+			(at 132.08 40.64 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Footprint" ""
+			(at 132.08 35.56 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" ""
+			(at 132.08 35.56 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Description" "Power symbol creates a global label with name \"GND\" , ground"
+			(at 132.08 35.56 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(pin "1"
+			(uuid "9bbd4b2b-2ee6-47f6-a344-6f1fbd63f5d8")
+		)
+		(instances
+			(project "KilnController"
+				(path "/c3036073-6461-4b90-ba15-ffed45812946"
+					(reference "#PWR020")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
 		(lib_id "Transistor_FET:Q_NMOS_DGS")
 		(at 233.68 57.15 0)
 		(unit 1)
@@ -5958,6 +6666,72 @@
 			(project "KilnController"
 				(path "/c3036073-6461-4b90-ba15-ffed45812946"
 					(reference "C2")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
+		(lib_id "power:GND")
+		(at 165.1 35.56 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(fields_autoplaced yes)
+		(uuid "d287878b-4e8e-46d6-ae0a-ccef514e87fe")
+		(property "Reference" "#PWR021"
+			(at 165.1 41.91 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Value" "GND"
+			(at 165.1 40.64 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Footprint" ""
+			(at 165.1 35.56 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" ""
+			(at 165.1 35.56 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Description" "Power symbol creates a global label with name \"GND\" , ground"
+			(at 165.1 35.56 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(pin "1"
+			(uuid "3a2c29f5-206f-4ab0-bd0b-5f9bbaf240b4")
+		)
+		(instances
+			(project "KilnController"
+				(path "/c3036073-6461-4b90-ba15-ffed45812946"
+					(reference "#PWR021")
 					(unit 1)
 				)
 			)

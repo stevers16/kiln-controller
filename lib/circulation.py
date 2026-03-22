@@ -67,9 +67,9 @@ class CirculationFans:
         self._speed_pct = speed_percent
         if self._logger:
             self._logger.event("circulation", f"Fans on at {speed_percent}%")
-        # Brief settle then verify current draw
-        time.sleep_ms(50)
-        self.verify_running(300, 900)
+        # Allow fans to spin up before verifying current draw
+        time.sleep_ms(1000)
+        self.verify_running(200, 500)
 
     def off(self):
         """Cut power to all fans via MOSFET gate; zero PWM signal."""
@@ -85,7 +85,7 @@ class CirculationFans:
         if self._running:
             self.on(speed_percent)
 
-    def verify_running(self, expected_min_mA=300, expected_max_mA=900):
+    def verify_running(self, expected_min_mA=200, expected_max_mA=500):
         """
         Check that the 12V rail current is within the expected range for
         fans-on operation.  Logs a WARN if out of range.
@@ -223,12 +223,12 @@ def test():
     fans_mon = CirculationFans(current_monitor=mon_12v)
     fans_mon.on(75)
     time.sleep_ms(3000)  # Allow fans to reach running speed before asserting
-    ok = fans_mon.verify_running(300, 900)
+    ok = fans_mon.verify_running(200, 500)
     reading = mon_12v.read()
     mA_str = f"{reading['current_mA']:.1f}mA" if reading else "read failed"
     passed = ok is True
     print(
-        f"  {'PASS' if passed else 'FAIL'} - fans on 75%: current in 300-900mA range ({mA_str})"
+        f"  {'PASS' if passed else 'FAIL'} - fans on 75%: current in 200-500mA range ({mA_str})"
     )
     all_passed &= passed
 
