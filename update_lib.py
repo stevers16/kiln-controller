@@ -36,8 +36,14 @@ def main():
 
     print(f"Copying {len(files)} file(s) to Pico /lib/ ...")
 
-    # Ensure /lib exists on the Pico
-    run(["mpremote", "mkdir", ":lib"])  # Ignore errors — dir may already exist
+    # Ensure /lib exists on the Pico (only create if missing)
+    check = subprocess.run(
+        ["mpremote", "ls", ":lib/"],
+        capture_output=True, text=True,
+    )
+    if check.returncode != 0:
+        print("  /lib/ not found on Pico, creating...")
+        run(["mpremote", "mkdir", ":lib"])
 
     all_ok = True
     for f in files:

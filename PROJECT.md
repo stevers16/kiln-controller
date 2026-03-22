@@ -10,9 +10,10 @@ state of the software side of this project.
 
 ## Overall status
 
-Early firmware stage. Six modules exist in `lib/`. No `main.py` yet. The logging
+Early firmware stage. Seven modules exist in `lib/`. No `main.py` yet. The logging
 stack is complete and fully tested on hardware. Vent servos are working. Current
 monitoring (INA219) is implemented and basic hardware test confirmed passing.
+SHT31 dual sensor module is implemented and tested on hardware.
 
 ---
 
@@ -26,6 +27,7 @@ monitoring (INA219) is implemented and basic hardware test confirmed passing.
 | `lib/logger.py` | Complete | Yes — all tests pass |
 | `lib/vents.py` | Complete | Yes — all tests pass |
 | `lib/current.py` | Complete | Basic test passing on hardware |
+| `lib/SHT31sensors.py` | Complete | Yes -- all tests pass |
 | `main.py` | Not written | — |
 
 ---
@@ -185,17 +187,35 @@ Measured 2026-03-22 with INA219 modules.
 
 ---
 
+## lib/SHT31sensors.py
+
+Reads temperature and relative humidity from two SHT31-D sensors over I2C.
+
+- Single shared I2C bus on GP0 (SDA) / GP1 (SCL), freq 100kHz
+- Sensor A at 0x44 (ADDR pin low) -- lumber zone
+- Sensor B at 0x45 (ADDR pin high) -- intake
+- Constructor scans bus and raises RuntimeError if either address is missing
+- `read()` returns dict with `temp_lumber`, `rh_lumber`, `temp_intake`, `rh_intake`
+- `read_lumber()` / `read_intake()` convenience methods return (temp_c, rh_pct) tuple
+- `soft_reset()` sends 0x30A2 to both sensors with 2ms delay
+- Single-shot high-repeatability measurement (0x2C06), 15ms wait, 6-byte read
+- CRC-8 verification (poly 0x31, init 0xFF) on both temp and RH words
+- Silent fail: returns None for any sensor that fails (CRC, I2C, timeout)
+- Accepts optional `logger=None`; calls `logger.event("sensors", ..., level="WARNING")` on failures
+- No third-party libraries -- SHT31 protocol implemented directly
+- I2C instance created internally (not shared) -- will need refactoring when main.py wires shared bus with INA219
+
+---
+
 ## What still needs building
 
 In rough priority order:
 
-1. **SHT31 sensors** (`lib/sensors.py`) — I²C on GP0/GP1, two addresses,
-   temp + RH readings
-2. **Heater** (`lib/heater.py`) — SSR on GP18, simple digital on/off with safety
+1. **Heater** (`lib/heater.py`) -- SSR on GP18, simple digital on/off with safety
    interlock logic
-3. **Moisture probes** (`lib/moisture.py`) — ADC on GP26/GP27, AC excitation on
+2. **Moisture probes** (`lib/moisture.py`) -- ADC on GP26/GP27, AC excitation on
    GP12/GP13
-4. **Display** (`lib/display.py`) — UART1 on GP8/GP9
-5. **Wi-Fi / REST API** — AP mode, HTTP server, time sync, mobile app interface
-6. **Drying schedule controller** — multi-stage logic consuming sensor readings
-7. **`main.py`** — entry point wiring all modules together
+3. **Display** (`lib/display.py`) -- UART1 on GP8/GP9
+4. **Wi-Fi / REST API** -- AP mode, HTTP server, time sync, mobile app interface
+5. **Drying schedule controller** -- multi-stage logic consuming sensor readings
+6. **`main.py`** -- entry point wiring all modules together
