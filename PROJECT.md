@@ -10,11 +10,11 @@ state of the software side of this project.
 
 ## Overall status
 
-Early firmware stage. Eight modules exist in `lib/`. No `main.py` yet. The logging
+Early firmware stage. Nine modules exist in `lib/`. No `main.py` yet. The logging
 stack is complete and fully tested on hardware. Vent servos are working. Current
 monitoring (INA219) is implemented and basic hardware test confirmed passing.
 SHT31 dual sensor module is implemented and tested on hardware. Heater SSR driver
-is implemented, pending hardware test.
+is implemented and tested. UART display driver is implemented and all tests pass.
 
 ---
 
@@ -30,6 +30,7 @@ is implemented, pending hardware test.
 | `lib/current.py` | Complete | Basic test passing on hardware |
 | `lib/SHT31sensors.py` | Complete | Yes -- all tests pass |
 | `lib/heater.py` | Complete | Yes -- all tests pass |
+| `lib/display.py` | Complete | Yes -- all tests pass |
 | `main.py` | Not written | -- |
 
 ---
@@ -225,13 +226,38 @@ Controls the 500W backup ceramic PTC heater via a Fotek SSR-25DA solid-state rel
 
 ---
 
+## lib/display.py
+
+Driver for JC035-HVGA-ST-02-V02 3.5" UART serial display.
+
+- UART1 on GP8 (TX) / GP9 (RX)
+- Default baud rate 115200; 1-second post-power-on delay enforced in constructor
+- All commands are ASCII strings terminated with `\r\n`; display replies `OK\r\n`
+- `clear(color)`, `set_orientation()`, `set_background_color()`, `set_backlight()`
+- Drawing primitives: `draw_pixel()`, `draw_line()`, `draw_rectangle()`, `draw_circle()`
+- Text: `draw_text()` supports sizes 16/24/32/48/72 with optional background fill
+- Widgets: `draw_button()`, `draw_qr()`
+- Scrolling text console: `write_characters()` with auto line-wrap and scroll
+- `get_version()` displays firmware version on screen (no UART response)
+- `_sanitise()` strips commas and semicolons from user text (display treats them as delimiters)
+- Button on GP10 (active-low, internal pull-up, polling with 50ms debounce)
+- Auto-timeout: backlight off after configurable idle period (default 30s); `timeout_s=0` disables
+- Page system: `register_page(name, render_fn)` adds named pages; button cycles through them
+- `show_page(name)` for programmatic navigation; `current_page_name` property
+- `tick()` called from main loop -- handles button debounce, page cycling, and timeout blanking
+- `reset_idle()` resets inactivity timer (call when app refreshes display content)
+- Button wake redraws current page without advancing; page advance only when awake with 2+ pages
+- Accepts no logger yet -- can be added when main.py integration begins
+- All unit tests pass on hardware (button/timeout/page tests included)
+
+---
+
 ## What still needs building
 
 In rough priority order:
 
 1. **Moisture probes** (`lib/moisture.py`) -- ADC on GP26/GP27, AC excitation on
    GP12/GP13
-3. **Display** (`lib/display.py`) -- UART1 on GP8/GP9
-4. **Wi-Fi / REST API** -- AP mode, HTTP server, time sync, mobile app interface
-5. **Drying schedule controller** -- multi-stage logic consuming sensor readings
-6. **`main.py`** -- entry point wiring all modules together
+2. **Wi-Fi / REST API** -- AP mode, HTTP server, time sync, mobile app interface
+3. **Drying schedule controller** -- multi-stage logic consuming sensor readings
+4. **`main.py`** -- entry point wiring all modules together

@@ -3441,10 +3441,6 @@
 		(at 78.74 102.87)
 		(uuid "ecc5c02b-57ae-4476-a29c-26653309e3d1")
 	)
-	(no_connect
-		(at 48.26 100.33)
-		(uuid "f3c7b04b-4575-475d-b911-d1b75818c428")
-	)
 	(wire
 		(pts
 			(xy 245.11 86.36) (xy 247.65 86.36)
@@ -3785,6 +3781,16 @@
 		)
 		(uuid "03fc8396-1f18-464c-9044-d751431c38ba")
 	)
+	(label "DISPLAY_TX"
+		(at 48.26 92.71 180)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify right bottom)
+		)
+		(uuid "0d21c56f-f8d0-4ab1-ba1e-0b6cfceb2fe2")
+	)
 	(label "I2C0_SDA"
 		(at 137.16 35.56 270)
 		(effects
@@ -3875,6 +3881,16 @@
 		)
 		(uuid "2d9d49cc-7bea-47f1-8055-6c285809dde6")
 	)
+	(label "+5V"
+		(at 158.75 91.44 270)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify right bottom)
+		)
+		(uuid "31d56028-10f4-4fcd-bb06-ca13d94d9ca9")
+	)
 	(label "+12V"
 		(at 139.7 35.56 270)
 		(effects
@@ -3945,6 +3961,26 @@
 		)
 		(uuid "48238075-8b8a-4a0c-9748-1022b2111614")
 	)
+	(label "DISPLAY_TX"
+		(at 156.21 91.44 270)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify right bottom)
+		)
+		(uuid "487c0aa4-6614-4382-9eb9-e9375c720581")
+	)
+	(label "DISPLAY_RX"
+		(at 153.67 91.44 270)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify right bottom)
+		)
+		(uuid "4a0c98b9-8ce1-41e4-8e9c-feaaac10f629")
+	)
 	(label "+5V"
 		(at 78.74 69.85 0)
 		(effects
@@ -3984,6 +4020,16 @@
 			(justify right bottom)
 		)
 		(uuid "64a1eca7-1af9-48ae-ab11-bed82914facf")
+	)
+	(label "DISPLAY_BUTTON"
+		(at 48.26 100.33 180)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify right bottom)
+		)
+		(uuid "67e7cfb1-3dc4-47f0-acab-d760b8d98e48")
 	)
 	(label "FAN_EX_PWM"
 		(at 247.65 29.21 0)
@@ -4054,6 +4100,16 @@
 			(justify left bottom)
 		)
 		(uuid "814c780c-302d-4d7a-b616-5b855a5ac56c")
+	)
+	(label "DISPLAY_RX"
+		(at 48.26 95.25 180)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify right bottom)
+		)
+		(uuid "861e3c76-f3d7-417a-b606-9a8020c5612f")
 	)
 	(label "FAN_EX_TACH"
 		(at 78.74 95.25 0)
@@ -4164,6 +4220,16 @@
 			(justify right bottom)
 		)
 		(uuid "9ca0085c-0ee2-4c5e-9ab9-702a977b177c")
+	)
+	(label "DISPLAY_BUTTON"
+		(at 172.72 91.44 270)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify right bottom)
+		)
+		(uuid "a506666e-065d-4028-92ee-70af39637a71")
 	)
 	(label "+5V"
 		(at 162.56 35.56 270)
@@ -4326,7 +4392,7 @@
 		(uuid "fef91eec-3709-4d61-949e-64e88ae14487")
 	)
 	(label "HEATER_SSR"
-		(at 173.99 92.71 270)
+		(at 132.08 91.44 270)
 		(effects
 			(font
 				(size 1.27 1.27)
@@ -5122,7 +5188,7 @@
 	)
 	(symbol
 		(lib_id "Connector:Screw_Terminal_01x02")
-		(at 173.99 87.63 90)
+		(at 132.08 86.36 90)
 		(unit 1)
 		(exclude_from_sim no)
 		(in_bom yes)
@@ -5130,7 +5196,7 @@
 		(dnp no)
 		(uuid "3575fad3-0935-45d2-8ca1-95b855dee840")
 		(property "Reference" "J9"
-			(at 175.006 80.518 90)
+			(at 133.096 79.248 90)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -5138,7 +5204,7 @@
 			)
 		)
 		(property "Value" "Heater SSR Header"
-			(at 175.26 83.058 90)
+			(at 133.35 81.788 90)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -5146,7 +5212,7 @@
 			)
 		)
 		(property "Footprint" "TerminalBlock_MetzConnect:TerminalBlock_MetzConnect_Type101_RT01602HBWC_1x02_P5.08mm_Horizontal"
-			(at 173.99 87.63 0)
+			(at 132.08 86.36 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -5155,7 +5221,7 @@
 			)
 		)
 		(property "Datasheet" "~"
-			(at 173.99 87.63 0)
+			(at 132.08 86.36 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -5164,7 +5230,7 @@
 			)
 		)
 		(property "Description" "Generic screw terminal, single row, 01x02, script generated (kicad-library-utils/schlib/autogen/connector/)"
-			(at 173.99 87.63 0)
+			(at 132.08 86.36 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -5583,6 +5649,72 @@
 			(project "KilnController"
 				(path "/c3036073-6461-4b90-ba15-ffed45812946"
 					(reference "#PWR04")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
+		(lib_id "power:GND")
+		(at 151.13 91.44 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(fields_autoplaced yes)
+		(uuid "44623934-dec8-44cb-86a3-9874b543546f")
+		(property "Reference" "#PWR025"
+			(at 151.13 97.79 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Value" "GND"
+			(at 151.13 96.52 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Footprint" ""
+			(at 151.13 91.44 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" ""
+			(at 151.13 91.44 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Description" "Power symbol creates a global label with name \"GND\" , ground"
+			(at 151.13 91.44 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(pin "1"
+			(uuid "b730dc97-abee-4282-9102-af23e7cb5acd")
+		)
+		(instances
+			(project "KilnController"
+				(path "/c3036073-6461-4b90-ba15-ffed45812946"
+					(reference "#PWR025")
 					(unit 1)
 				)
 			)
@@ -6208,6 +6340,139 @@
 		)
 	)
 	(symbol
+		(lib_id "power:GND")
+		(at 175.26 91.44 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(fields_autoplaced yes)
+		(uuid "7d1b5c01-5d7f-42be-8614-8904fb955426")
+		(property "Reference" "#PWR026"
+			(at 175.26 97.79 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Value" "GND"
+			(at 175.26 96.52 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Footprint" ""
+			(at 175.26 91.44 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" ""
+			(at 175.26 91.44 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Description" "Power symbol creates a global label with name \"GND\" , ground"
+			(at 175.26 91.44 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(pin "1"
+			(uuid "9c12a102-4409-4175-b60c-1126539dce33")
+		)
+		(instances
+			(project "KilnController"
+				(path "/c3036073-6461-4b90-ba15-ffed45812946"
+					(reference "#PWR026")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
+		(lib_id "Connector:Screw_Terminal_01x02")
+		(at 172.72 86.36 90)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(uuid "7fa0ca9a-5d5c-43e4-bc11-bf98d82acfc1")
+		(property "Reference" "J11"
+			(at 173.736 79.248 90)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Value" "Display Button Header"
+			(at 173.99 81.788 90)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Footprint" "TerminalBlock_MetzConnect:TerminalBlock_MetzConnect_Type101_RT01602HBWC_1x02_P5.08mm_Horizontal"
+			(at 172.72 86.36 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" "~"
+			(at 172.72 86.36 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Description" "Generic screw terminal, single row, 01x02, script generated (kicad-library-utils/schlib/autogen/connector/)"
+			(at 172.72 86.36 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(pin "2"
+			(uuid "703a7167-b82b-49dd-b355-6655fa2edb38")
+		)
+		(pin "1"
+			(uuid "44599091-7b70-4c3e-8bbc-51d4febc8940")
+		)
+		(instances
+			(project "KilnController"
+				(path "/c3036073-6461-4b90-ba15-ffed45812946"
+					(reference "J11")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
 		(lib_id "KilnSymbols:Screw_Terminal_01x04")
 		(at 245.11 78.74 90)
 		(unit 1)
@@ -6276,6 +6541,80 @@
 			(project "KilnController"
 				(path "/c3036073-6461-4b90-ba15-ffed45812946"
 					(reference "J3")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
+		(lib_id "KilnSymbols:Screw_Terminal_01x04")
+		(at 153.67 86.36 90)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(fields_autoplaced yes)
+		(uuid "939d06ea-929a-4ab4-8cda-3800a4da8673")
+		(property "Reference" "J10"
+			(at 154.94 80.01 90)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Value" "Display Header"
+			(at 154.94 82.55 90)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Footprint" "KilnFootprintLibrary:TerminalBlock_MetzConnect_Type101_RT01604HBWC_1x04_P5.08mm_Horizontal"
+			(at 153.67 86.36 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" "~"
+			(at 153.67 86.36 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Description" "Generic screw terminal, single row, 01x04, script generated (kicad-library-utils/schlib/autogen/connector/)"
+			(at 153.67 86.36 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(pin "3"
+			(uuid "1bcb424c-c531-402d-b83d-296f1e563984")
+		)
+		(pin "2"
+			(uuid "a1844ef6-3ba4-45f3-9bb3-f44117708906")
+		)
+		(pin "1"
+			(uuid "7c3d4f13-0e10-4d5b-8782-18f230b5ff19")
+		)
+		(pin "4"
+			(uuid "083a31fd-6e65-45d1-855c-434a81127641")
+		)
+		(instances
+			(project "KilnController"
+				(path "/c3036073-6461-4b90-ba15-ffed45812946"
+					(reference "J10")
 					(unit 1)
 				)
 			)
@@ -6357,7 +6696,7 @@
 	)
 	(symbol
 		(lib_id "power:GND")
-		(at 176.53 92.71 0)
+		(at 134.62 91.44 0)
 		(unit 1)
 		(exclude_from_sim no)
 		(in_bom yes)
@@ -6366,7 +6705,7 @@
 		(fields_autoplaced yes)
 		(uuid "a5703d53-6fb5-4891-a7b1-56af5b6aa7cd")
 		(property "Reference" "#PWR024"
-			(at 176.53 99.06 0)
+			(at 134.62 97.79 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -6375,7 +6714,7 @@
 			)
 		)
 		(property "Value" "GND"
-			(at 176.53 97.79 0)
+			(at 134.62 96.52 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -6383,7 +6722,7 @@
 			)
 		)
 		(property "Footprint" ""
-			(at 176.53 92.71 0)
+			(at 134.62 91.44 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -6392,7 +6731,7 @@
 			)
 		)
 		(property "Datasheet" ""
-			(at 176.53 92.71 0)
+			(at 134.62 91.44 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -6401,7 +6740,7 @@
 			)
 		)
 		(property "Description" "Power symbol creates a global label with name \"GND\" , ground"
-			(at 176.53 92.71 0)
+			(at 134.62 91.44 0)
 			(effects
 				(font
 					(size 1.27 1.27)

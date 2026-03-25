@@ -4,8 +4,8 @@ import time
 
 # --- Constants ---
 UART_ID = 1
-UART_TX = 4  # GP4 -> display RX
-UART_RX = 5  # GP5 <- display TX
+UART_TX = 8  # GP8 -> display TX
+UART_RX = 9  # GP9 <- display RX
 BAUD_RATE = 115200
 WAIT_MS = 500  # default response timeout
 
@@ -62,7 +62,13 @@ class Display:
     """
 
     def __init__(
-        self, uart_id=UART_ID, tx_pin=UART_TX, rx_pin=UART_RX, baudrate=BAUD_RATE
+        self,
+        uart_id=UART_ID,
+        tx_pin=UART_TX,
+        rx_pin=UART_RX,
+        baudrate=BAUD_RATE,
+        button_pin=10,
+        timeout_s=30,
     ):
         self._uart = machine.UART(
             uart_id,
@@ -86,6 +92,27 @@ class Display:
         self._line_buffer = []
         self._current_line = ""
         self._cursor = {"x": 0, "y": 0}
+
+        # Button (polling, active-low with internal pull-up)
+        if button_pin is not None:
+            self._btn_pin = machine.Pin(
+                button_pin, machine.Pin.IN, machine.Pin.PULL_UP
+            )
+        else:
+            self._btn_pin = None
+        self._btn_last_state = 1  # pulled high = not pressed
+        self._btn_stable_ms = time.ticks_ms()
+        self._btn_handled = False  # True after press acted on, reset on release
+        self._debounce_ms = 50
+
+        # Timeout
+        self._timeout_ms = timeout_s * 1000
+        self._last_activity = time.ticks_ms()
+        self._display_on = True
+
+        # Pages
+        self._pages = []  # list of {"name": str, "render_fn": callable}
+        self._current_page_idx = 0
 
         self.set_orientation(Orientation.LANDSCAPE)
         self.clear()
@@ -242,6 +269,98 @@ class Display:
         return self._cmd(f"QRCODE({x},{y},{text},{size},{color});", timeout_ms=1200)
 
     # ------------------------------------------------------------------
+    # Button, timeout, and page system
+    # ------------------------------------------------------------------
+
+    def register_page(self, name, render_fn):
+        """Register a named page with a zero-argument render callback."""
+        self._pages.append({"name": name, "render_fn": render_fn})
+        # First page registered becomes active
+        if len(self._pages) == 1:
+            self._current_page_idx = 0
+
+    @property
+    def current_page_name(self):
+        """Return name of the active page, or None if no pages registered."""
+        if not self._pages:
+            return None
+        return self._pages[self._current_page_idx]["name"]
+
+    def show_page(self, name):
+        """Jump to a named page. Raises ValueError if not found."""
+        for i, page in enumerate(self._pages):
+            if page["name"] == name:
+                self._current_page_idx = i
+                if not self._display_on:
+                    self.set_backlight(0)
+                    self._display_on = True
+                self.clear()
+                page["render_fn"]()
+                self.reset_idle()
+                return
+        raise ValueError(f"unknown page: {name}")
+
+    def reset_idle(self):
+        """Reset the idle timer. Call when the app writes to the display."""
+        self._last_activity = time.ticks_ms()
+
+    def tick(self):
+        """
+        Call regularly from main loop. Handles button debounce,
+        timeout blanking, and page cycling.
+        Returns True if a button press was detected this call.
+        """
+        now = time.ticks_ms()
+        pressed = False
+
+        # -- Button debounce and press detection --
+        if self._btn_pin is not None:
+            raw = self._btn_pin.value()
+            if raw != self._btn_last_state:
+                # Pin changed -- restart debounce window
+                self._btn_stable_ms = now
+                self._btn_last_state = raw
+            elif (
+                raw == 0
+                and not self._btn_handled
+                and time.ticks_diff(now, self._btn_stable_ms) >= self._debounce_ms
+            ):
+                # Stable LOW long enough -- falling edge press detected
+                self._btn_handled = True
+                pressed = True
+
+                if not self._display_on:
+                    # Wake display, redraw current page, do NOT advance
+                    self.set_backlight(0)
+                    self._display_on = True
+                    if self._pages:
+                        self.clear()
+                        self._pages[self._current_page_idx]["render_fn"]()
+                elif len(self._pages) >= 2:
+                    # Advance to next page
+                    self._current_page_idx = (
+                        (self._current_page_idx + 1) % len(self._pages)
+                    )
+                    self.clear()
+                    self._pages[self._current_page_idx]["render_fn"]()
+
+                self._last_activity = now
+            elif raw == 1:
+                # Released -- allow next press to be detected
+                self._btn_handled = False
+
+        # -- Timeout check --
+        if (
+            self._timeout_ms > 0
+            and self._display_on
+            and time.ticks_diff(now, self._last_activity) >= self._timeout_ms
+        ):
+            self.set_backlight(255)  # off per datasheet
+            self._display_on = False
+
+        return pressed
+
+    # ------------------------------------------------------------------
     # Scrolling text console  (retained from original driver)
     # ------------------------------------------------------------------
 
@@ -296,10 +415,12 @@ def test():
         print(f"  {status} - {label}")
         if not passed:
             all_passed = False
+        time.sleep(1)
 
-    # Firmware version query
-    ver = display.get_version()
-    check(f"get_version -> '{ver}'", ver if ver else "")
+    # Firmware version query (prints version on display, no UART response)
+    display.get_version()
+    print("  INFO - get_version (visual check: version shown on display)")
+    time.sleep(2)
 
     # Screen clear
     check("clear(BLACK)", display.clear(Color.BLACK))
@@ -361,6 +482,70 @@ def test():
     print("  INFO - scrolling console (visual check only)")
     for i in range(12):
         display.write_characters(f"Line {i}: kiln temp OK\n")
+
+    # ------------------------------------------------------------------
+    # Button, timeout, and page system tests
+    # ------------------------------------------------------------------
+    display.clear()
+    time.sleep(1)
+
+    # Test: register_page adds page correctly
+    page_drawn = [False]
+    def dummy_render():
+        page_drawn[0] = True
+        display.draw_text(0, 0, "Page: status", Color.WHITE, size=32)
+
+    display.register_page("status", dummy_render)
+    passed = display.current_page_name == "status"
+    print(f"  {'PASS' if passed else 'FAIL'} - register_page adds page correctly")
+    if not passed:
+        all_passed = False
+    time.sleep(1)
+
+    # Test: show_page navigates correctly
+    def sensor_render():
+        display.draw_text(0, 0, "Page: sensors", Color.GREEN, size=32)
+
+    display.register_page("sensors", sensor_render)
+    display.show_page("sensors")
+    passed = display.current_page_name == "sensors"
+    print(f"  {'PASS' if passed else 'FAIL'} - show_page navigates correctly")
+    if not passed:
+        all_passed = False
+    time.sleep(1)
+
+    # Test: show_page unknown name raises ValueError
+    try:
+        display.show_page("nonexistent")
+        passed = False
+    except ValueError:
+        passed = True
+    print(f"  {'PASS' if passed else 'FAIL'} - show_page unknown name raises ValueError")
+    if not passed:
+        all_passed = False
+    time.sleep(1)
+
+    # Test: timeout blanks display
+    timeout_display = Display(button_pin=None, timeout_s=1)
+    timeout_display.reset_idle()
+    time.sleep_ms(1100)
+    timeout_display.tick()
+    passed = timeout_display._display_on == False
+    print(f"  {'PASS' if passed else 'FAIL'} - timeout blanks display")
+    if not passed:
+        all_passed = False
+    time.sleep(1)
+
+    # Test: tick() returns bool
+    result = display.tick()
+    passed = isinstance(result, bool)
+    print(f"  {'PASS' if passed else 'FAIL'} - tick() returns bool")
+    if not passed:
+        all_passed = False
+    time.sleep(1)
+
+    # Note: button press tests require physical interaction and cannot
+    # be automated. Verify manually by pressing the button on GP10.
 
     print(f"\n{'All tests passed!' if all_passed else 'Some tests FAILED'}")
     return all_passed
