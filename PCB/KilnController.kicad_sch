@@ -3364,10 +3364,22 @@
 		(uuid "7460f34c-36c0-40df-863d-6218321cdbda")
 	)
 	(junction
+		(at 171.45 132.08)
+		(diameter 0)
+		(color 0 0 0 0)
+		(uuid "78841788-9d16-493c-b616-961a507ca86c")
+	)
+	(junction
 		(at 236.22 39.37)
 		(diameter 0)
 		(color 0 0 0 0)
 		(uuid "9b25e1b6-7c7b-4762-84b1-a17821c26c5e")
+	)
+	(junction
+		(at 132.08 132.08)
+		(diameter 0)
+		(color 0 0 0 0)
+		(uuid "ced52de4-efec-4aef-bf9c-bf653ae7683f")
 	)
 	(junction
 		(at 46.99 34.29)
@@ -3410,10 +3422,6 @@
 		(uuid "2c2931e5-6f77-4fdf-ad7e-0b0acf11d08a")
 	)
 	(no_connect
-		(at 48.26 90.17)
-		(uuid "43d8b11f-3d88-4cd8-818e-a045dad6cb6c")
-	)
-	(no_connect
 		(at 273.05 139.7)
 		(uuid "5ff31898-1f48-4763-aa50-7b99e6f64990")
 	)
@@ -3422,24 +3430,12 @@
 		(uuid "68452670-e9a2-4dd3-90fe-d6aecf5b6fa9")
 	)
 	(no_connect
-		(at 48.26 102.87)
-		(uuid "93825ec9-1b80-4cb7-a5c4-03ccf1c55829")
-	)
-	(no_connect
 		(at 78.74 92.71)
 		(uuid "9bf8f534-d1c4-4351-91dc-d8e98dba310d")
 	)
 	(no_connect
-		(at 48.26 87.63)
-		(uuid "c3c733ff-dafa-49a9-800f-c108068e897b")
-	)
-	(no_connect
 		(at 66.04 120.65)
 		(uuid "d4f392b2-01b0-46a3-8be1-6cce101f7214")
-	)
-	(no_connect
-		(at 78.74 102.87)
-		(uuid "ecc5c02b-57ae-4476-a29c-26653309e3d1")
 	)
 	(wire
 		(pts
@@ -3493,6 +3489,26 @@
 	)
 	(wire
 		(pts
+			(xy 166.37 132.08) (xy 171.45 132.08)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "12bf0abc-feb8-46a7-b224-9f08d7b5a1be")
+	)
+	(wire
+		(pts
+			(xy 156.21 132.08) (xy 158.75 132.08)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "15a113bb-00bf-4f80-8f5c-713c59e5eefe")
+	)
+	(wire
+		(pts
 			(xy 259.08 30.48) (xy 261.62 30.48)
 		)
 		(stroke
@@ -3513,6 +3529,16 @@
 	)
 	(wire
 		(pts
+			(xy 171.45 132.08) (xy 176.53 132.08)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "45efc7ca-c0d1-46bb-bcd6-1dd59682d43f")
+	)
+	(wire
+		(pts
 			(xy 245.11 30.48) (xy 259.08 30.48)
 		)
 		(stroke
@@ -3520,6 +3546,26 @@
 			(type default)
 		)
 		(uuid "520d96c9-e119-4cd5-be09-96ff22bd91a3")
+	)
+	(wire
+		(pts
+			(xy 127 132.08) (xy 132.08 132.08)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "552ad30f-4c96-46b3-b838-a9166b5d10ce")
+	)
+	(wire
+		(pts
+			(xy 171.45 124.46) (xy 171.45 132.08)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "558172ed-6e2e-4e17-ba6a-7c2d9fbb7425")
 	)
 	(wire
 		(pts
@@ -3553,6 +3599,16 @@
 	)
 	(wire
 		(pts
+			(xy 116.84 132.08) (xy 119.38 132.08)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "682d968e-ef92-4bfa-b9ee-2f33de19a8ef")
+	)
+	(wire
+		(pts
 			(xy 236.22 39.37) (xy 236.22 52.07)
 		)
 		(stroke
@@ -3583,6 +3639,16 @@
 	)
 	(wire
 		(pts
+			(xy 132.08 132.08) (xy 137.16 132.08)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "842c2fdb-4fda-4ac4-bf89-4404999a79c1")
+	)
+	(wire
+		(pts
 			(xy 238.76 93.98) (xy 238.76 106.68)
 		)
 		(stroke
@@ -3600,6 +3666,16 @@
 			(type default)
 		)
 		(uuid "93a11407-e31a-4c0b-8939-fcceb8203eb0")
+	)
+	(wire
+		(pts
+			(xy 132.08 124.46) (xy 132.08 132.08)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "9457ecd9-b9f8-4425-ad60-f7b9858777d5")
 	)
 	(wire
 		(pts
@@ -3781,6 +3857,16 @@
 		)
 		(uuid "03fc8396-1f18-464c-9044-d751431c38ba")
 	)
+	(label "LORA_RST"
+		(at 78.74 82.55 0)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left bottom)
+		)
+		(uuid "06297a53-8c3e-4d92-b706-77de7ffc755b")
+	)
 	(label "DISPLAY_TX"
 		(at 48.26 92.71 180)
 		(effects
@@ -3871,6 +3957,16 @@
 		)
 		(uuid "2603644e-9973-4da0-8166-e88472e04e45")
 	)
+	(label "PROBE_2_ADC"
+		(at 78.74 87.63 0)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left bottom)
+		)
+		(uuid "2aa8ed1c-bb25-45be-834b-e51bad630a40")
+	)
 	(label "+5V"
 		(at 194.31 31.75 270)
 		(effects
@@ -3941,6 +4037,16 @@
 		)
 		(uuid "42fa46d8-0d21-4a0e-8a81-dea8ee07b5a7")
 	)
+	(label "PROBE_2_DRIVER"
+		(at 156.21 132.08 270)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify right bottom)
+		)
+		(uuid "43a10841-6c9e-4ceb-a977-0248805a3db2")
+	)
 	(label "+3V3"
 		(at 259.08 40.64 0)
 		(effects
@@ -3950,6 +4056,16 @@
 			(justify left bottom)
 		)
 		(uuid "44b29480-f016-4ac6-86d2-923e7e605cdb")
+	)
+	(label "PROBE_1_DRIVER"
+		(at 116.84 132.08 270)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify right bottom)
+		)
+		(uuid "46477aef-a452-4c1a-a8ef-bcb26f738944")
 	)
 	(label "FAN_CIR_GATE"
 		(at 219.71 111.76 180)
@@ -3981,6 +4097,16 @@
 		)
 		(uuid "4a0c98b9-8ce1-41e4-8e9c-feaaac10f629")
 	)
+	(label "PROBE_2_DRIVER"
+		(at 48.26 90.17 180)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify right bottom)
+		)
+		(uuid "56c1b499-a7fc-4b11-b064-8d75e7045dc8")
+	)
 	(label "+5V"
 		(at 78.74 69.85 0)
 		(effects
@@ -3990,6 +4116,16 @@
 			(justify left bottom)
 		)
 		(uuid "57248a60-5e3c-4aa1-bc33-daf7ca35b861")
+	)
+	(label "PROBE_1_DRIVER"
+		(at 48.26 87.63 180)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify right bottom)
+		)
+		(uuid "5d7752a2-d7d5-40cc-91b9-0e782cae7d90")
 	)
 	(label "I2C0_SDA"
 		(at 175.26 66.04 270)
@@ -4022,14 +4158,24 @@
 		(uuid "64a1eca7-1af9-48ae-ab11-bed82914facf")
 	)
 	(label "DISPLAY_BUTTON"
-		(at 48.26 100.33 180)
+		(at 78.74 102.87 0)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left bottom)
+		)
+		(uuid "67e7cfb1-3dc4-47f0-acab-d760b8d98e48")
+	)
+	(label "LORA_RX"
+		(at 48.26 105.41 180)
 		(effects
 			(font
 				(size 1.27 1.27)
 			)
 			(justify right bottom)
 		)
-		(uuid "67e7cfb1-3dc4-47f0-acab-d760b8d98e48")
+		(uuid "70add765-a8ab-49f8-b98e-4f91302d9bbb")
 	)
 	(label "FAN_EX_PWM"
 		(at 247.65 29.21 0)
@@ -4081,6 +4227,16 @@
 		)
 		(uuid "7bf71f40-6651-49c6-a0a4-3cf8a28a038b")
 	)
+	(label "PROBE_1_ADC"
+		(at 137.16 132.08 0)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left bottom)
+		)
+		(uuid "7c7a8ee0-a030-4e2a-8bf5-8aa9ddc64ec4")
+	)
 	(label "SERVO_EXHAUST"
 		(at 251.46 139.7 270)
 		(effects
@@ -4120,6 +4276,16 @@
 			(justify left bottom)
 		)
 		(uuid "8681c855-2c5f-4ef5-ae66-0daa8dae36fa")
+	)
+	(label "LORA_TX"
+		(at 48.26 102.87 180)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify right bottom)
+		)
+		(uuid "889d2508-1c59-45f8-bda5-b15837c5aee6")
 	)
 	(label "FAN_CIR_PWM"
 		(at 78.74 113.03 0)
@@ -4271,6 +4437,16 @@
 		)
 		(uuid "c0dd710d-789d-4803-99c8-8ba0d570c671")
 	)
+	(label "LORA_CS"
+		(at 48.26 107.95 180)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify right bottom)
+		)
+		(uuid "c572ccf0-b66c-498e-a095-dd0ed84dd730")
+	)
 	(label "SD_CS"
 		(at 48.26 82.55 180)
 		(effects
@@ -4280,6 +4456,16 @@
 			(justify right bottom)
 		)
 		(uuid "c6141c7a-9529-4ace-9a84-7034245c207b")
+	)
+	(label "LORA_SCK"
+		(at 48.26 100.33 180)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify right bottom)
+		)
+		(uuid "c6a6ea44-b707-448a-bede-9146861da64f")
 	)
 	(label "FAN_EX_TACH"
 		(at 261.62 30.48 0)
@@ -4300,6 +4486,16 @@
 			(justify right bottom)
 		)
 		(uuid "cd2d48f2-642b-4d43-9c45-865c1360ffaa")
+	)
+	(label "PROBE_2_ADC"
+		(at 176.53 132.08 0)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left bottom)
+		)
+		(uuid "d139d0e5-3f8a-4f71-a35e-1be467bed2ce")
 	)
 	(label "I2C0_SCL"
 		(at 138.43 66.04 270)
@@ -4380,6 +4576,16 @@
 			(justify right bottom)
 		)
 		(uuid "f61c1774-7607-445a-956d-32332954c63a")
+	)
+	(label "PROBE_1_ADC"
+		(at 78.74 90.17 0)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left bottom)
+		)
+		(uuid "fa88519c-6bd6-4054-a3b3-2b84ec31314b")
 	)
 	(label "I2C0_SDA"
 		(at 140.97 66.04 270)
@@ -4687,6 +4893,73 @@
 			(project "KilnController"
 				(path "/c3036073-6461-4b90-ba15-ffed45812946"
 					(reference "#PWR012")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
+		(lib_id "power:GND")
+		(at 173.99 124.46 90)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(fields_autoplaced yes)
+		(uuid "0c17b7f0-78ad-4893-8517-6fed2028cb98")
+		(property "Reference" "#PWR028"
+			(at 180.34 124.46 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Value" "GND"
+			(at 177.8 124.4599 90)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify right)
+			)
+		)
+		(property "Footprint" ""
+			(at 173.99 124.46 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" ""
+			(at 173.99 124.46 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Description" "Power symbol creates a global label with name \"GND\" , ground"
+			(at 173.99 124.46 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(pin "1"
+			(uuid "08f0efbc-3e09-4662-8d3b-bb2adc5bc24b")
+		)
+		(instances
+			(project "KilnController"
+				(path "/c3036073-6461-4b90-ba15-ffed45812946"
+					(reference "#PWR028")
 					(unit 1)
 				)
 			)
@@ -6198,6 +6471,73 @@
 		)
 	)
 	(symbol
+		(lib_id "power:GND")
+		(at 134.62 124.46 90)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(fields_autoplaced yes)
+		(uuid "676d887a-7a0c-4cde-aa08-6a0fa6897206")
+		(property "Reference" "#PWR027"
+			(at 140.97 124.46 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Value" "GND"
+			(at 138.43 124.4599 90)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify right)
+			)
+		)
+		(property "Footprint" ""
+			(at 134.62 124.46 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" ""
+			(at 134.62 124.46 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Description" "Power symbol creates a global label with name \"GND\" , ground"
+			(at 134.62 124.46 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(pin "1"
+			(uuid "1f4dafe5-8db0-4943-aac0-6f07d483b92c")
+		)
+		(instances
+			(project "KilnController"
+				(path "/c3036073-6461-4b90-ba15-ffed45812946"
+					(reference "#PWR027")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
 		(lib_id "KilnSymbols:Screw_Terminal_01x04")
 		(at 270.51 134.62 90)
 		(unit 1)
@@ -6473,6 +6813,73 @@
 		)
 	)
 	(symbol
+		(lib_id "Connector:Screw_Terminal_01x02")
+		(at 171.45 119.38 90)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(uuid "8fa178ea-f067-4cea-afe4-60e9cff97557")
+		(property "Reference" "J13"
+			(at 172.466 112.268 90)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Value" "Moisture Probe 2 Header"
+			(at 172.72 114.808 90)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Footprint" "TerminalBlock_MetzConnect:TerminalBlock_MetzConnect_Type101_RT01602HBWC_1x02_P5.08mm_Horizontal"
+			(at 171.45 119.38 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" "~"
+			(at 171.45 119.38 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Description" "Generic screw terminal, single row, 01x02, script generated (kicad-library-utils/schlib/autogen/connector/)"
+			(at 171.45 119.38 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(pin "2"
+			(uuid "0f544dde-bb35-4226-ba2b-0c8912fc31f1")
+		)
+		(pin "1"
+			(uuid "faf39383-c710-4645-bc41-7cf3365e12ed")
+		)
+		(instances
+			(project "KilnController"
+				(path "/c3036073-6461-4b90-ba15-ffed45812946"
+					(reference "J13")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
 		(lib_id "KilnSymbols:Screw_Terminal_01x04")
 		(at 245.11 78.74 90)
 		(unit 1)
@@ -6615,6 +7022,74 @@
 			(project "KilnController"
 				(path "/c3036073-6461-4b90-ba15-ffed45812946"
 					(reference "J10")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
+		(lib_id "Device:R")
+		(at 162.56 132.08 90)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(fields_autoplaced yes)
+		(uuid "95aa6aac-6117-4897-abfb-52f426302671")
+		(property "Reference" "R7"
+			(at 162.56 125.73 90)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Value" "100k"
+			(at 162.56 128.27 90)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Footprint" "Resistor_THT:R_Axial_DIN0207_L6.3mm_D2.5mm_P10.16mm_Horizontal"
+			(at 162.56 133.858 90)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" "~"
+			(at 162.56 132.08 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Description" "Resistor"
+			(at 162.56 132.08 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(pin "2"
+			(uuid "6fd40dd1-6d7c-4af1-9a57-d91d18681b6d")
+		)
+		(pin "1"
+			(uuid "69843832-908c-46f4-9672-a6fef96f6278")
+		)
+		(instances
+			(project "KilnController"
+				(path "/c3036073-6461-4b90-ba15-ffed45812946"
+					(reference "R7")
 					(unit 1)
 				)
 			)
@@ -7409,6 +7884,74 @@
 		)
 	)
 	(symbol
+		(lib_id "Device:R")
+		(at 123.19 132.08 90)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(fields_autoplaced yes)
+		(uuid "ce125ee6-cb53-4aab-bdf0-bfc606371c38")
+		(property "Reference" "R6"
+			(at 123.19 125.73 90)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Value" "100k"
+			(at 123.19 128.27 90)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Footprint" "Resistor_THT:R_Axial_DIN0207_L6.3mm_D2.5mm_P10.16mm_Horizontal"
+			(at 123.19 133.858 90)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" "~"
+			(at 123.19 132.08 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Description" "Resistor"
+			(at 123.19 132.08 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(pin "2"
+			(uuid "677e766b-db9d-4306-99fa-6df5c20972d0")
+		)
+		(pin "1"
+			(uuid "b568620b-7551-4597-b4c4-64d8e43ef08c")
+		)
+		(instances
+			(project "KilnController"
+				(path "/c3036073-6461-4b90-ba15-ffed45812946"
+					(reference "R6")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
 		(lib_id "Device:C_Polarized_Small_US")
 		(at 91.44 35.56 0)
 		(unit 1)
@@ -7948,6 +8491,73 @@
 			(project "KilnController"
 				(path "/c3036073-6461-4b90-ba15-ffed45812946"
 					(reference "C1")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
+		(lib_id "Connector:Screw_Terminal_01x02")
+		(at 132.08 119.38 90)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(uuid "eaefa765-79e6-46b9-80f8-4ca23c077fce")
+		(property "Reference" "J12"
+			(at 133.096 112.268 90)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Value" "Moisture Probe 1 Header"
+			(at 133.35 114.808 90)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Footprint" "TerminalBlock_MetzConnect:TerminalBlock_MetzConnect_Type101_RT01602HBWC_1x02_P5.08mm_Horizontal"
+			(at 132.08 119.38 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" "~"
+			(at 132.08 119.38 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Description" "Generic screw terminal, single row, 01x02, script generated (kicad-library-utils/schlib/autogen/connector/)"
+			(at 132.08 119.38 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(pin "2"
+			(uuid "2e5e8488-e3db-4705-80a4-e0cca0cac54f")
+		)
+		(pin "1"
+			(uuid "a402546a-9240-47d7-9e0a-ca514df2b33e")
+		)
+		(instances
+			(project "KilnController"
+				(path "/c3036073-6461-4b90-ba15-ffed45812946"
+					(reference "J12")
 					(unit 1)
 				)
 			)

@@ -240,7 +240,7 @@ Driver for JC035-HVGA-ST-02-V02 3.5" UART serial display.
 - Scrolling text console: `write_characters()` with auto line-wrap and scroll
 - `get_version()` displays firmware version on screen (no UART response)
 - `_sanitise()` strips commas and semicolons from user text (display treats them as delimiters)
-- Button on GP10 (active-low, internal pull-up, polling with 50ms debounce)
+- Button on GP20 (active-low, internal pull-up, polling with 50ms debounce)
 - Auto-timeout: backlight off after configurable idle period (default 30s); `timeout_s=0` disables
 - Page system: `register_page(name, render_fn)` adds named pages; button cycles through them
 - `show_page(name)` for programmatic navigation; `current_page_name` property
@@ -257,7 +257,9 @@ Driver for JC035-HVGA-ST-02-V02 3.5" UART serial display.
 In rough priority order:
 
 1. **Moisture probes** (`lib/moisture.py`) -- ADC on GP26/GP27, AC excitation on
-   GP12/GP13
-2. **Wi-Fi / REST API** -- AP mode, HTTP server, time sync, mobile app interface
-3. **Drying schedule controller** -- multi-stage logic consuming sensor readings
-4. **`main.py`** -- entry point wiring all modules together
+   GP6/GP7
+2. **Drying schedule controller** -- multi-stage logic consuming sensor readings
+3. **Wi-Fi / REST API** -- AP mode, HTTP server, time sync, mobile app interface
+4. **LoRa wireless telemetry** -- Telemetry and notification push to cottage wi-fi gateway
+5. **`main.py`** -- entry point wiring all modules together
+6. **Kivy Android app** -- mobile interface for monitoring and control

@@ -67,7 +67,7 @@ class Display:
         tx_pin=UART_TX,
         rx_pin=UART_RX,
         baudrate=BAUD_RATE,
-        button_pin=10,
+        button_pin=20,
         timeout_s=30,
     ):
         self._uart = machine.UART(
@@ -95,9 +95,7 @@ class Display:
 
         # Button (polling, active-low with internal pull-up)
         if button_pin is not None:
-            self._btn_pin = machine.Pin(
-                button_pin, machine.Pin.IN, machine.Pin.PULL_UP
-            )
+            self._btn_pin = machine.Pin(button_pin, machine.Pin.IN, machine.Pin.PULL_UP)
         else:
             self._btn_pin = None
         self._btn_last_state = 1  # pulled high = not pressed
@@ -338,8 +336,8 @@ class Display:
                         self._pages[self._current_page_idx]["render_fn"]()
                 elif len(self._pages) >= 2:
                     # Advance to next page
-                    self._current_page_idx = (
-                        (self._current_page_idx + 1) % len(self._pages)
+                    self._current_page_idx = (self._current_page_idx + 1) % len(
+                        self._pages
                     )
                     self.clear()
                     self._pages[self._current_page_idx]["render_fn"]()
@@ -491,6 +489,7 @@ def test():
 
     # Test: register_page adds page correctly
     page_drawn = [False]
+
     def dummy_render():
         page_drawn[0] = True
         display.draw_text(0, 0, "Page: status", Color.WHITE, size=32)
@@ -520,7 +519,9 @@ def test():
         passed = False
     except ValueError:
         passed = True
-    print(f"  {'PASS' if passed else 'FAIL'} - show_page unknown name raises ValueError")
+    print(
+        f"  {'PASS' if passed else 'FAIL'} - show_page unknown name raises ValueError"
+    )
     if not passed:
         all_passed = False
     time.sleep(1)
@@ -545,7 +546,7 @@ def test():
     time.sleep(1)
 
     # Note: button press tests require physical interaction and cannot
-    # be automated. Verify manually by pressing the button on GP10.
+    # be automated. Verify manually by pressing the button on GP20.
 
     print(f"\n{'All tests passed!' if all_passed else 'Some tests FAILED'}")
     return all_passed
