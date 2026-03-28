@@ -10,12 +10,14 @@ state of the software side of this project.
 
 ## Overall status
 
-Early firmware stage. Ten modules exist in `lib/`. No `main.py` yet. The logging
-stack is complete and fully tested on hardware. Vent servos are working. Current
-monitoring (INA219) is implemented and basic hardware test confirmed passing.
-SHT31 dual sensor module is implemented and tested on hardware. Heater SSR driver
-is implemented and tested. UART display driver is implemented and all tests pass.
-Moisture probe module is implemented and tested on hardware.
+Firmware nearing integration stage. Twelve modules exist in `lib/`. No `main.py`
+yet. The logging stack is complete and fully tested on hardware. Vent servos are
+working. Current monitoring (INA219) is implemented and basic hardware test
+confirmed passing. SHT31 dual sensor module is implemented and tested on hardware.
+Heater SSR driver is implemented and tested. UART display driver is implemented
+and all tests pass. Moisture probe module is implemented and tested on hardware.
+Mock LoRa transmitter driver is complete (hardware on order). Drying schedule
+controller is complete with FPL-based schedules for hard maple and beech.
 
 ---
 
@@ -33,6 +35,8 @@ Moisture probe module is implemented and tested on hardware.
 | `lib/heater.py` | Complete | Yes -- all tests pass |
 | `lib/display.py` | Complete | Yes -- all tests pass |
 | `lib/moisture.py` | Complete | Yes -- all tests pass |
+| `lib/lora.py` | Mock complete | Yes -- mock tests pass on hardware |
+| `lib/schedule.py` | Complete | Yes -- mock-based tests pass on hardware |
 | `main.py` | Not written | -- |
 
 ---
@@ -258,7 +262,7 @@ Driver for JC035-HVGA-ST-02-V02 3.5" UART serial display.
 
 Reads wood moisture content (MC%) from two resistive probe channels.
 
-- Ch1: excitation GP12, ADC GP26 (maple); Ch2: excitation GP13, ADC GP27 (beech)
+- Ch1: excitation GP6, ADC GP26 (maple); Ch2: excitation GP7, ADC GP27 (beech)
 - AC excitation: drive HIGH -> 15ms settle -> 5 ADC samples -> drive LOW -> 10ms discharge
 - 100kohm reference resistor voltage divider; R_wood calculated from ADC voltage
 - Log-linear interpolation on 12-point resistance-to-MC% lookup table (FPL Wood Handbook)
@@ -272,12 +276,52 @@ Reads wood moisture content (MC%) from two resistive probe channels.
 
 ---
 
+## lib/lora.py
+
+Mock LoRa transmitter driver for AI-Thinker Ra-02 (SX1278, 433 MHz).
+
+- Mock implementation for development while Ra-02 modules are on order
+- SPI1 on GP10 (SCK), GP11 (MOSI), GP12 (MISO), GP13 (CS), RST on GP28
+- TX-only -- no receive path on the Pico side (DIO0 not connected)
+- `send(payload: bytes) -> bool` -- raw byte transmission (mock always returns True)
+- `send_telemetry(data: dict) -> bool` -- JSON serialise and send
+- `send_alert(code: str, message: str) -> bool` -- with 3x retry, 2s spacing
+- `reset()` -- radio reset stub
+- `is_mock` property returns True; `tx_count` and `last_payload` for inspection
+- Accepts optional `logger=None`; source string "lora"
+- 12 unit tests included, all mock-based
+
+---
+
+## lib/schedule.py
+
+Drying schedule controller -- top-level control logic for multi-stage kiln drying.
+
+- Orchestrates heater, exhaust, vents, circulation, sensors, moisture, LoRa
+- Loads schedule JSON from SD card via `load(schedule_path)` -- validates all stages
+- `start()` begins from stage 0; `stop(reason)` halts with safe shutdown
+- `tick()` called from main loop -- reads sensors, controls heater/vents, checks advance
+- `status()` returns full state dict for REST API and display
+- `tick_interval_s` property: 30s while venting, 120s otherwise
+- Temperature control: deadband heater with fault detection (20 min no-rise alert)
+- RH control: vent-only with cold suppression; overheat venting takes priority
+- Stage advance: drying stages use MC% + time; equalizing/conditioning are time-only
+- LoRa alerts: stage_advance, stage_goal_not_met, equalizing_start, conditioning_start, run_complete, temp/rh out of range, sensor_failure, heater_fault
+- Alert rate limiting: same alert type suppressed for 30 min (one-shot alerts bypass)
+- Equalizing/conditioning entry alerts include water pan reminder
+- Schedule JSON files in `schedules/` directory: maple_05in, maple_1in, beech_05in, beech_1in
+- All schedules based on FPL-GTR-57/118 kiln-drying data
+- 12 unit tests using mock objects
+
+---
+
 ## What still needs building
 
 In rough priority order:
 
-1. **Drying schedule controller** -- multi-stage logic consuming sensor readings
-3. **Wi-Fi / REST API** -- AP mode, HTTP server, time sync, mobile app interface
-4. **LoRa wireless telemetry** -- Telemetry and notification push to cottage wi-fi gateway
-5. **`main.py`** -- entry point wiring all modules together
-6. **Kivy Android app** -- mobile interface for monitoring and control
+1. **Wi-Fi / REST API** -- AP mode, HTTP server, time sync, mobile app interface
+2. **`main.py`** -- entry point wiring all modules together
+3. **LoRa real driver** -- replace mock lora.py when Ra-02 hardware arrives
+4. **ESP32 gateway sketch** -- RadioLib + MQTT forwarding
+5. **Kivy Android app** -- mobile interface for monitoring and control
+6. ** RPi 4 telemetry server** -- MQTT broker, LoRa receiver, REST API, web dashboard

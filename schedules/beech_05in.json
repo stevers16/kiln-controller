@@ -1,0 +1,88 @@
+{
+  "name": "Beech 0.5 inch",
+  "species": "beech",
+  "thickness_in": 0.5,
+  "stages": [
+    {
+      "name": "Stage 1 - Initial warm-up",
+      "stage_type": "drying",
+      "target_temp_c": 35,
+      "target_rh_pct": 88,
+      "target_mc_pct": 35.0,
+      "min_duration_h": 12,
+      "max_duration_h": 48
+    },
+    {
+      "name": "Stage 2",
+      "stage_type": "drying",
+      "target_temp_c": 40,
+      "target_rh_pct": 82,
+      "target_mc_pct": 30.0,
+      "min_duration_h": 12,
+      "max_duration_h": 48
+    },
+    {
+      "name": "Stage 3",
+      "stage_type": "drying",
+      "target_temp_c": 46,
+      "target_rh_pct": 74,
+      "target_mc_pct": 25.0,
+      "min_duration_h": 12,
+      "max_duration_h": 48
+    },
+    {
+      "name": "Stage 4",
+      "stage_type": "drying",
+      "target_temp_c": 52,
+      "target_rh_pct": 65,
+      "target_mc_pct": 20.0,
+      "min_duration_h": 12,
+      "max_duration_h": 48
+    },
+    {
+      "name": "Stage 5",
+      "stage_type": "drying",
+      "target_temp_c": 57,
+      "target_rh_pct": 56,
+      "target_mc_pct": 15.0,
+      "min_duration_h": 12,
+      "max_duration_h": 48
+    },
+    {
+      "name": "Stage 6",
+      "stage_type": "drying",
+      "target_temp_c": 60,
+      "target_rh_pct": 46,
+      "target_mc_pct": 10.0,
+      "min_duration_h": 12,
+      "max_duration_h": 48
+    },
+    {
+      "name": "Stage 7 - Final dry",
+      "stage_type": "drying",
+      "target_temp_c": 63,
+      "target_rh_pct": 38,
+      "target_mc_pct": 7.0,
+      "min_duration_h": 8,
+      "max_duration_h": 36
+    },
+    {
+      "name": "Equalizing",
+      "stage_type": "equalizing",
+      "target_temp_c": 63,
+      "target_rh_pct": 50,
+      "target_mc_pct": null,
+      "min_duration_h": 12,
+      "max_duration_h": null
+    },
+    {
+      "name": "Conditioning",
+      "stage_type": "conditioning",
+      "target_temp_c": 63,
+      "target_rh_pct": 70,
+      "target_mc_pct": null,
+      "min_duration_h": 8,
+      "max_duration_h": null
+    }
+  ]
+}

@@ -18,17 +18,17 @@ direction between readings to prevent electrolysis on the probe pins.
 ### Circuit (per channel, ch2 identical)
 
 ```
-GP12 (excitation) ---[R6 100kohm]---+--- GP26 (ADC0)
+GP6 (excitation) ----[R6 100kohm]---+--- GP26 (ADC0)
                                     |
                                 R_wood  (probe pins in lumber)
                                     |
                                    GND
 ```
 
-- GP12 driven HIGH during a measurement, LOW otherwise
+- GP6 driven HIGH during a measurement, LOW otherwise
 - GP26 reads voltage at the junction between R6 and R_wood
-- When GP12 is HIGH: V_adc = 3.3V * R_wood / (100000 + R_wood)
-- When GP12 is LOW: both ends of the divider are at 0V -- ADC will read ~0
+- When GP6 is HIGH: V_adc = 3.3V * R_wood / (100000 + R_wood)
+- When GP6 is LOW: both ends of the divider are at 0V -- ADC will read ~0
   -- this phase is NOT used for measurement; it exists only to alternate
   current direction and prevent electrolysis
 
@@ -36,15 +36,15 @@ GP12 (excitation) ---[R6 100kohm]---+--- GP26 (ADC0)
 
 | Signal         | GPIO | Notes                              |
 |----------------|------|------------------------------------|
-| Ch1 excitation | GP12 | Digital OUT, driven HIGH to measure|
+| Ch1 excitation | GP6  | Digital OUT, driven HIGH to measure|
 | Ch1 ADC        | GP26 | ADC0, reads divider midpoint       |
-| Ch2 excitation | GP13 | Digital OUT, driven HIGH to measure|
+| Ch2 excitation | GP7  | Digital OUT, driven HIGH to measure|
 | Ch2 ADC        | GP27 | ADC1, reads divider midpoint       |
 
 ### Probe construction
 
 - Two stainless steel pins per probe, ~25-30mm apart, driven into face grain
-- One pin connects to the GP12/R6/GP26 junction node
+- One pin connects to the GP6/R6/GP26 junction node
 - Other pin connects to GND
 - Polarity does not matter for the resistance measurement
 
@@ -55,8 +55,8 @@ GP12 (excitation) ---[R6 100kohm]---+--- GP26 (ADC0)
 ```python
 class MoistureProbe:
     def __init__(self,
-                 excite_pin_1=12, adc_pin_1=26,
-                 excite_pin_2=13, adc_pin_2=27,
+                 excite_pin_1=6, adc_pin_1=26,
+                 excite_pin_2=7, adc_pin_2=27,
                  species_1="maple", species_2="beech",
                  logger=None):
 ```
@@ -348,7 +348,7 @@ TEMP_CORRECTION_PER_DEG = 0.06  # MC% correction per degC
 
 ## What Claude Code should NOT change
 
-- Pin assignments (GP12/GP13/GP26/GP27) -- hardware is fixed
+- Pin assignments (GP6/GP7/GP26/GP27) -- hardware is fixed
 - The AC excitation sequence (HIGH -> settle -> sample -> LOW -> discharge)
 - The logger dependency injection pattern
 - The ASCII-only string rule (no Unicode in any string, comment, or docstring)

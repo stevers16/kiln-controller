@@ -5,13 +5,13 @@
 # AC excitation to prevent electrolysis on the probe pins.
 #
 # Wiring (per channel):
-#   GP12 (excitation) ---[R6 100kohm]---+--- GP26 (ADC0)
+#   GP6 (excitation) ----[R6 100kohm]---+--- GP26 (ADC0)
 #                                       |
 #                                   R_wood (probe pins in lumber)
 #                                       |
 #                                      GND
 #
-# GP12/GP26 = channel 1 (maple), GP13/GP27 = channel 2 (beech)
+# GP6/GP26 = channel 1 (maple), GP7/GP27 = channel 2 (beech)
 
 import machine
 import time
@@ -118,9 +118,9 @@ class MoistureProbe:
 
     def __init__(
         self,
-        excite_pin_1=12,
+        excite_pin_1=6,
         adc_pin_1=26,
-        excite_pin_2=13,
+        excite_pin_2=7,
         adc_pin_2=27,
         species_1="maple",
         species_2="beech",
