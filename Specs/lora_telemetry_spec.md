@@ -1,25 +1,27 @@
 # LoRa Telemetry Module — Hardware & Firmware Spec
 **Kiln Controller Project**
-**Status:** Pending hardware sourcing
-**Scope:** Covers Pico-side LoRa transmitter and ESP32-side LoRa gateway
+**Status:** Ra-02 modules on order (arriving ~2 weeks); Pi4 daemon not yet implemented
+**Scope:** Covers Pico-side LoRa transmitter and Pi4-side LoRa receiver + data server
 
 ---
 
 ## Overview
 
-The kiln Pico 2W transmits periodic telemetry and fault alerts via a LoRa radio link to an
-ESP32 gateway at the cottage (~200m, wooded path following cleared driveway). The ESP32
-forwards data over WiFi to an MQTT broker (Mosquitto on Pi4 when deployed; laptop for bench
-testing). A mobile phone subscribes to alert topics for notifications.
+The kiln Pico 2W transmits periodic telemetry and fault alerts via a LoRa radio link to a
+Raspberry Pi 4 at the cottage (~200m, wooded path following cleared driveway). The Pi4 has
+a second Ra-02 module wired directly to its SPI bus. A Python daemon receives LoRa packets,
+writes them to a SQLite database, serves a REST API for the Kivy phone app, and pushes
+fault alerts via ntfy.sh.
 
 ```
-Pico 2W -> SPI -> Ra-02 (433 MHz) ~~LoRa~~ Ra-02 -> SPI -> ESP32-WROOM-32 -> WiFi -> Mosquitto -> phone
+Pico 2W --> SPI1 --> Ra-02 (433 MHz) ~~LoRa~~ Ra-02 --> SPI0 --> Pi4 daemon --> SQLite
+                                                                              --> REST API --> Kivy app
+                                                                              --> ntfy.sh --> phone
 ```
 
-**Pico-side is transmit-only.** The Pico never listens for incoming LoRa packets. All
-parameter changes and commands to the kiln are handled via the Wi-Fi AP / REST API interface.
-This simplifies the firmware significantly and frees GP20 (previously reserved for a DIO0
-interrupt) for use as the display button input.
+No ESP32 or MQTT broker is required in the deployed system. The ESP32-WROOM-32 devboard
+(owned) is useful for bench testing the Pico LoRa transmitter before the Pi4 daemon is
+ready, but is not part of the production architecture.
 
 ---
 
@@ -27,10 +29,9 @@ interrupt) for use as the display button input.
 
 ### LoRa Modules
 
-**Part:** AI-Thinker Ra-02 (SX1278, 433 MHz)
-**Quantity:** 2
-**Sourcing:** AliExpress (~$4-8 CAD total for both)
-**Critical:** Order the **433 MHz Ra-02** (blue PCB), NOT the 915 MHz Ra-01 or Ra-01S.
+**Part:** AI-Thinker Ra-02 (SX1278, 433 MHz) with IPEX antenna
+**Quantity:** 2 (ordered from AliExpress)
+**Critical:** 433 MHz variant only -- NOT the 915 MHz Ra-01 or Ra-01S.
 
 **Ra-02 electrical characteristics:**
 - Supply voltage: 3.3V (NOT 5V tolerant -- will be damaged by 5V)
@@ -39,80 +40,64 @@ interrupt) for use as the display button input.
 - Max SPI clock: 10 MHz (use 1-4 MHz in practice)
 - Current draw: ~120 mA TX, ~12 mA RX, ~1.5 mA idle
 
-**Antenna:** Ra-02 has a u.FL connector. Options:
-- u.FL to SMA pigtail + 433 MHz spring/whip antenna (most AliExpress listings include one)
-- Bare quarter-wave wire antenna: 17.3 cm of solid wire soldered to u.FL centre pin with GND
-  connected. Adequate for 200m with line-of-sight or light obstruction.
+**Antenna:** IPEX (u.FL) connector with antenna included in order.
 
 ---
 
 ### Pico-Side Wiring (Kiln Enclosure)
 
-The Ra-02 runs on 3.3V and connects via SPI1 on the Pico using the default SPI1 pin block
-(GP10-GP13). DIO0 is **not connected** on the Pico side -- TX completion is confirmed by
-polling the SX1278 IRQ flags register over SPI (see Firmware section). This frees GP20 for
-use as the display button.
+The Ra-02 connects via SPI1 on the Pico using the default SPI1 pin block (GP10-GP13).
+Moisture probe AC excitation channels were moved from GP12/GP13 to GP6/GP7 to free the
+full SPI1 block for LoRa -- this is already reflected in `lib/moisture.py` (GP6/GP7).
 
 **Power:**
 
-| Ra-02 Pin | Pico Pin       | Notes                        |
-|-----------|----------------|------------------------------|
-| VCC       | 3.3V (Pin 36)  | Ra-02 is 3.3V only           |
-| GND       | GND (Pin 38)   | Common ground                |
+| Ra-02 Pin | Pico Pin      | Notes               |
+|-----------|---------------|---------------------|
+| VCC       | 3.3V (Pin 36) | Ra-02 is 3.3V only  |
+| GND       | GND (Pin 38)  | Common ground       |
 
 **SPI and control:**
 
-| Ra-02 Pin | Pico GPIO | Physical Pin | Notes                        |
-|-----------|-----------|--------------|------------------------------|
-| SCK       | GP10      | Pin 14       | SPI1 SCK (default)           |
-| MOSI      | GP11      | Pin 15       | SPI1 TX (default)            |
-| MISO      | GP12      | Pin 16       | SPI1 RX (default)            |
-| NSS (CS)  | GP13      | Pin 17       | SPI1 CS -- active low        |
-| RST       | GP28      | Pin 34       | Reset -- active low          |
-| DIO0      | --        | not connected| Not needed (TX-only, polling)|
+| Ra-02 Pin | Pico GPIO | Physical Pin | Notes                           |
+|-----------|-----------|--------------|---------------------------------|
+| SCK       | GP10      | Pin 14       | SPI1 SCK (default)              |
+| MOSI      | GP11      | Pin 15       | SPI1 TX (default)               |
+| MISO      | GP12      | Pin 16       | SPI1 RX (default)               |
+| NSS (CS)  | GP13      | Pin 17       | SPI1 CS (default) -- active low |
+| DIO0      | GP20      | Pin 26       | Interrupt -- TX done            |
+| RST       | GP28      | Pin 34       | Reset -- active low             |
 
-**GPIO map (Pico GPIO Map tab in BOM):**
-
-| GPIO | Function                        | Notes                                    |
-|------|---------------------------------|------------------------------------------|
-| GP10 | SPI1 SCK -- LoRa Ra-02          |                                          |
-| GP11 | SPI1 TX (MOSI) -- LoRa Ra-02   |                                          |
-| GP12 | SPI1 RX (MISO) -- LoRa Ra-02   |                                          |
-| GP13 | SPI1 CS -- LoRa Ra-02           | Active low                               |
-| GP20 | Digital IN -- Display button    | Freed from LoRa DIO0; see display spec   |
-| GP28 | Digital OUT -- LoRa RST         |                                          |
-
-**Decoupling:** Place a 100 nF ceramic capacitor between Ra-02 VCC and GND, as close to the
-module as possible. The Ra-02's RF switching causes supply transients.
+**Decoupling:** Place a 100 nF ceramic capacitor between Ra-02 VCC and GND as close to
+the module as possible. The Ra-02 RF switching causes supply transients.
 
 ---
 
-### ESP32 Gateway Wiring
+### Pi4-Side Wiring (Cottage)
 
-**Board:** KeeYees ESP32-WROOM-32 devboard, 38-pin narrow (owned)
-**Programming:** Arduino IDE via USB (CP2102 onboard)
-
-The ESP32 3.3V pin supplies the Ra-02 directly. All SPI signals are 3.3V -- no level shifting
-required. DIO0 IS connected on the ESP32 side because the gateway uses interrupt-driven
-receive via RadioLib.
+The Ra-02 wires directly to the Pi4 GPIO header via SPI0. The Pi4 GPIO is 3.3V -- no
+level shifting required. SPI must be enabled on the Pi4 via:
+`sudo raspi-config` -> Interface Options -> SPI -> Enable
 
 **Power:**
 
-| Ra-02 Pin | ESP32 Pin | Notes                        |
-|-----------|-----------|------------------------------|
-| VCC       | 3.3V      | From ESP32 onboard regulator |
-| GND       | GND       | Common ground                |
+| Ra-02 Pin | Pi4 Pin       | Notes              |
+|-----------|---------------|--------------------|
+| VCC       | Pin 17 (3.3V) | Ra-02 is 3.3V only |
+| GND       | Pin 20 (GND)  | Common ground      |
 
-**SPI and control (VSPI -- ESP32 hardware SPI):**
+**SPI and control (SPI0, CE0):**
 
-| Ra-02 Pin | ESP32 GPIO | Notes                        |
-|-----------|------------|------------------------------|
-| SCK       | GPIO18     | VSPI SCK                     |
-| MOSI      | GPIO23     | VSPI MOSI                    |
-| MISO      | GPIO19     | VSPI MISO                    |
-| NSS (CS)  | GPIO5      | VSPI CS                      |
-| DIO0      | GPIO4      | RX done interrupt (required) |
-| RST       | GPIO14     | Reset line                   |
+| Ra-02 Pin | Pi4 GPIO | Pi4 Physical Pin | Notes                     |
+|-----------|----------|------------------|---------------------------|
+| SCK       | GPIO11   | Pin 23           | SPI0 SCLK                 |
+| MOSI      | GPIO10   | Pin 19           | SPI0 MOSI                 |
+| MISO      | GPIO9    | Pin 21           | SPI0 MISO                 |
+| NSS (CS)  | GPIO8    | Pin 24           | SPI0 CE0 -- active low    |
+| DIO0      | GPIO25   | Pin 22           | RX done interrupt (input) |
+| RST       | GPIO17   | Pin 11           | Reset line (output)       |
+
+**Decoupling:** 100 nF ceramic capacitor between Ra-02 VCC and GND.
 
 ---
 
@@ -120,285 +105,293 @@ receive via RadioLib.
 
 ### Pico Side -- `lib/lora.py`
 
-Follow the existing module pattern (class-based, pin numbers as constructor args, matching
-`exhaust.py` template).
+A mock implementation already exists and passes hardware tests. This section describes
+the real driver to replace it once Ra-02 hardware arrives. Follow the existing module
+pattern (class-based, pin numbers as constructor args, matching `exhaust.py` template).
 
 ```python
 # Instantiation example (from main.py)
 lora = LoRa(
     spi_id=1,
     sck=10, mosi=11, miso=12,
-    cs=13, rst=28,
+    cs=13, irq=20, rst=28,
     frequency=433_000_000
 )
 ```
-
-Note: no `irq` parameter -- DIO0 is not connected on the Pico side.
 
 **Class responsibilities:**
 - Initialise SPI1 using default pin block:
   `SPI(1, baudrate=1_000_000, sck=Pin(10), mosi=Pin(11), miso=Pin(12))`
 - Configure SX1278 registers via SPI (frequency, bandwidth, spreading factor, coding rate)
-- Expose `send(payload: bytes) -> bool` -- blocking send with polling-based completion check
-- Expose `send_telemetry(data: dict) -> bool` -- serialises dict to JSON and calls `send()`
-- Expose `send_alert(code: str, message: str) -> bool` -- for fault conditions
-- No receive path on the Pico
+- `send(payload: bytes) -> bool` -- blocking TX, polls TxDone flag (reg 0x12 bit 3), 2s timeout
+- `send_telemetry(data: dict) -> bool` -- serialises dict to JSON, calls `send()`
+- `send_alert(code: str, message: str) -> bool` -- 3x retry with 2s spacing
+- `reset()` -- pulses RST pin low for 10ms
+- `is_mock` property returns False (distinguishes from mock implementation)
+- TX-only -- no receive path on Pico side
+- Accepts optional `logger=None`; source string `"lora"`
 
-**TX completion -- register polling (no DIO0 needed):**
+**Suggested LoRa RF parameters:**
 
-Because DIO0 is not connected, TX completion is determined by polling the SX1278 IRQ flags
-register (RegIrqFlags, address 0x12) over SPI. The TxDone flag is bit 3 (mask 0x08).
-
-Procedure in `send()`:
-1. Write payload to FIFO, set mode to TX (RegOpMode = 0x83)
-2. Calculate maximum expected airtime for the payload length and LoRa parameters
-3. Poll RegIrqFlags in a loop (5 ms intervals) until bit 3 (TxDone) is set, or timeout
-4. Clear all IRQ flags by writing 0xFF to RegIrqFlags
-5. Return device to sleep mode (RegOpMode = 0x80)
-6. Return True on TxDone, False on timeout
-
-For SF9 / 125 kHz / 4:5 coding rate, airtime for a 100-byte payload is approximately 330 ms.
-Use a timeout of 2000 ms to give comfortable headroom across payload sizes.
-
-This approach is functionally equivalent to interrupt-driven TX confirmation for a
-transmit-only module on a 30-second heartbeat schedule. There is no meaningful latency
-difference in practice.
-
-**Suggested LoRa parameters (balance range vs. latency):**
-
-| Parameter       | Value    | Notes                                              |
-|-----------------|----------|----------------------------------------------------|
-| Frequency       | 433.0 MHz| Within 433.05-434.79 MHz ISM band (Canada RSS-210) |
-| Bandwidth       | 125 kHz  | Standard                                           |
-| Spreading Factor| SF9      | ~250 bps, good for wooded 200m path               |
-| Coding Rate     | 4/5      |                                                    |
-| TX Power        | 17 dBm   | Ra-02 maximum; reduce if interference observed     |
-| Preamble        | 8 symbols| Default                                            |
+| Parameter        | Value     | Notes                                              |
+|------------------|-----------|----------------------------------------------------|
+| Frequency        | 433.0 MHz | Within 433.05-434.79 MHz ISM band (Canada RSS-210) |
+| Bandwidth        | 125 kHz   | Standard                                           |
+| Spreading Factor | SF9       | Good for wooded 200m; increase if link marginal    |
+| Coding Rate      | 4/5       |                                                    |
+| TX Power         | 17 dBm    | Ra-02 maximum; reduce if interference observed     |
+| Preamble         | 8 symbols | Default                                            |
 
 **Transmission schedule:**
-- Telemetry heartbeat: every 30 seconds (configurable)
-- Fault alerts: immediate, retried up to 3 times with 2s spacing
-- SPI1 (LoRa) and SPI0 (SD card) are independent buses -- no bus contention risk
+- Telemetry heartbeat: every 30 seconds (driven by `schedule.py` tick)
+- Fault alerts: immediate on detection, retried up to 3x with 2s spacing
+- SPI1 (LoRa) and SPI0 (SD card) are separate buses -- no contention
 
-**Power note:** Ra-02 draws ~120 mA during TX. At 17 dBm on a 30-second interval,
-duty cycle is well under 1% -- within the 10% limit for 433 MHz ISM use in Canada.
-
-**Logger integration:** Accepts optional `logger=None`; calls `logger.event("lora", ...)`
-on init, successful send, send timeout, and RST events.
+**Duty cycle note:** At 30s intervals TX duty cycle is well under 1% -- within the 10%
+limit for 433 MHz ISM use in Canada.
 
 ---
 
-### ESP32 Side -- Arduino Sketch
+### Pi4 Side -- `kiln_server/` Python package
 
-**Libraries required (Arduino IDE Library Manager):**
-- `RadioLib` by Jan Gromes -- SX1276/78 support, well-maintained
-- `PubSubClient` by Nick O'Leary -- MQTT client
-- `ArduinoJson` by Benoit Blanchon -- JSON parsing
+The Pi4 runs a single Python process that owns the Ra-02 via SPI, writes all received
+data to SQLite, serves a REST API to the Kivy app, and pushes alerts via ntfy.sh.
 
-**Sketch structure:**
+**Python dependencies:**
+- `spidev` -- SPI bus access on Pi4
+- `RPi.GPIO` -- GPIO interrupt handling for DIO0
+- `pysx127x` or equivalent SX1276/78 driver (or port register sequences from Pico driver
+  directly -- keeps both sides symmetric and eliminates a third-party dependency)
+- `flask` or `fastapi` -- REST API
+- `requests` -- ntfy.sh HTTP POST
+- `sqlite3` -- stdlib, no install required
+
+**Package structure:**
 
 ```
-gateway/
-  gateway.ino       -- setup(), loop()
-  config.h          -- WiFi credentials, MQTT broker IP, topic prefixes
-  lora_handler.cpp  -- RadioLib init, onReceive() callback
-  mqtt_handler.cpp  -- MQTT connect/reconnect, publish helpers
+kiln_server/
+  __main__.py       -- entry point; starts receiver loop and REST API server
+  config.py         -- Pi4 GPIO pins, DB path, ntfy topic, API port, LoRa params
+  lora_receiver.py  -- SX1278 init, receive loop, DIO0 interrupt handler
+  database.py       -- SQLite open/init, insert_telemetry(), insert_alert(), query functions
+  api.py            -- REST route definitions
+  notifier.py       -- ntfy.sh POST helper
+  schema.sql        -- SQLite CREATE TABLE statements (also executed by database.py on init)
 ```
 
-**`config.h` (the only file that changes between bench and cottage deployment):**
+**`config.py` (the only file that changes between bench and cottage deployment):**
 
-```cpp
-// Bench testing
-#define WIFI_SSID     "HomeNetwork"
-#define WIFI_PASSWORD "homepassword"
-#define MQTT_BROKER   "192.168.1.xx"   // laptop IP running Mosquitto
+```python
+# Bench Pi4 (home)
+DB_PATH       = "/home/pi/kiln_data.db"
+NTFY_TOPIC    = "your-unique-kiln-topic"
+API_PORT      = 8080
 
-// Cottage deployment (swap these)
-// #define WIFI_SSID     "CottageNetwork"
-// #define WIFI_PASSWORD "cottagepassword"
-// #define MQTT_BROKER   "192.168.x.xx"  // Pi4 IP
+# Pi4 GPIO pin numbers (BCM numbering -- same on bench and cottage)
+LORA_RST_PIN  = 17
+LORA_DIO0_PIN = 25
+LORA_SPI_BUS  = 0
+LORA_SPI_DEV  = 0    # CE0
+
+# LoRa RF params -- must match Pico side
+LORA_FREQ_HZ  = 433_000_000
+LORA_SF       = 9
+LORA_BW_HZ    = 125_000
 ```
 
 **Operation:**
-1. On boot: connect WiFi, connect MQTT broker, initialise RadioLib SX1278
-2. RadioLib interrupt-driven receive: `radio.startReceive()` -> DIO0 fires -> `onReceive()`
-3. `onReceive()`: read packet, parse JSON, publish to MQTT topic
-4. Loop: maintain WiFi + MQTT connections, reconnect if dropped
-5. Publish RSSI and SNR alongside each payload (useful for link quality monitoring)
+1. On start: initialise Ra-02 via SPI, configure for continuous receive mode
+2. DIO0 interrupt fires on packet received -> read payload, parse JSON
+3. Write telemetry record to SQLite `telemetry` table with Pi4 wall-clock timestamp
+4. If packet is an alert, write to `alerts` table and POST to ntfy.sh
+5. REST API runs concurrently (thread or async) serving Kivy app queries
+6. Daemon runs continuously; started at boot via systemd unit file
 
 ---
 
-## MQTT Topic Structure
+## SQLite Schema
 
-**Root prefix:** `kiln/`
+```sql
+-- schema.sql
 
-All values published as JSON payloads. QoS 0 for telemetry, QoS 1 for alerts.
+CREATE TABLE IF NOT EXISTS telemetry (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    ts              INTEGER NOT NULL,   -- Unix timestamp from Pico RTC
+    received_at     INTEGER NOT NULL,   -- Unix timestamp on Pi4 (wall clock)
+    stage           TEXT,
+    temp_lumber     REAL,
+    temp_intake     REAL,
+    humidity_lumber REAL,
+    humidity_intake REAL,
+    mc_maple        REAL,
+    mc_beech        REAL,
+    exhaust_fan_rpm INTEGER,
+    exhaust_fan_pct INTEGER,
+    circ_fan_on     INTEGER,            -- 0/1
+    heater_on       INTEGER,            -- 0/1
+    vent_open       INTEGER,            -- 0/1
+    lora_rssi       INTEGER,            -- dBm, measured at Pi4 receiver
+    lora_snr        REAL
+);
 
-### Telemetry (heartbeat, every 30s)
+CREATE TABLE IF NOT EXISTS alerts (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    ts          INTEGER NOT NULL,
+    received_at INTEGER NOT NULL,
+    code        TEXT NOT NULL,
+    message     TEXT,
+    value       REAL,
+    limit_val   REAL,
+    lora_rssi   INTEGER,
+    lora_snr    REAL
+);
 
-**Topic:** `kiln/telemetry`
+CREATE TABLE IF NOT EXISTS runs (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    started_at    INTEGER NOT NULL,
+    ended_at      INTEGER,
+    schedule_name TEXT,
+    completed     INTEGER DEFAULT 0     -- 0/1
+);
 
-```json
-{
-  "ts": 1700000000,
-  "stage": "drying",
-  "temp_lumber": 52.3,
-  "temp_intake": 28.1,
-  "humidity_lumber": 61.2,
-  "humidity_intake": 44.5,
-  "exhaust_fan_rpm": 1850,
-  "exhaust_fan_pct": 75,
-  "circ_fan_on": true,
-  "heater_on": false,
-  "vent_open": true,
-  "rssi": -87,
-  "snr": 7.2
-}
-```
-
-### Alerts (fault conditions)
-
-**Topic:** `kiln/alert`
-
-```json
-{
-  "ts": 1700000000,
-  "code": "OVER_TEMP",
-  "message": "Lumber zone temp 85 deg C exceeds limit",
-  "value": 85.0,
-  "limit": 80.0
-}
-```
-
-**Alert codes:**
-
-| Code              | Condition                                            |
-|-------------------|------------------------------------------------------|
-| `OVER_TEMP`       | Either SHT31 zone exceeds stage limit                |
-| `SENSOR_FAIL`     | SHT31 read error or timeout                          |
-| `FAN_STALL`       | Exhaust fan tach reads 0 RPM when commanded on       |
-| `HEATER_TIMEOUT`  | SSR on continuously beyond safety threshold          |
-| `SD_FAIL`         | SD card write error                                  |
-| `LORA_TIMEOUT`    | TX did not complete within timeout (TxDone not seen) |
-| `STAGE_COMPLETE`  | Drying schedule stage transition (informational)     |
-| `SCHEDULE_DONE`   | Full drying schedule completed                       |
-
-### Status (on-demand or on change)
-
-**Topic:** `kiln/status`
-
-```json
-{
-  "ts": 1700000000,
-  "state": "running",
-  "schedule_name": "maple_1inch",
-  "stage_index": 2,
-  "stage_name": "main_dry",
-  "stage_elapsed_min": 143,
-  "stage_duration_min": 480
-}
-```
-
-### Gateway health
-
-**Topic:** `kiln/gateway`
-
-Published by ESP32 every 60s:
-
-```json
-{
-  "ts": 1700000000,
-  "uptime_s": 3600,
-  "wifi_rssi": -62,
-  "last_lora_rssi": -87,
-  "last_lora_snr": 7.2,
-  "packets_received": 120,
-  "packets_missed": 2
-}
+CREATE INDEX IF NOT EXISTS idx_telemetry_ts ON telemetry(ts);
+CREATE INDEX IF NOT EXISTS idx_alerts_ts    ON alerts(ts);
 ```
 
 ---
 
-## Phone Notifications
+## REST API Endpoints
 
-### Option A -- ntfy.sh (recommended, simplest)
+Base URL: `http://<pi4-ip>:8080`
 
-The Pi4 (or laptop during testing) runs a small subscriber script that listens to `kiln/alert`
-and HTTP-POSTs to ntfy.sh. Free tier is adequate.
+All responses are JSON.
+
+| Method | Path       | Description                                                            |
+|--------|------------|------------------------------------------------------------------------|
+| GET    | `/status`  | Latest telemetry record                                                |
+| GET    | `/history` | Time-series data; params: `start`, `end` (Unix ts), `fields` (CSV list)|
+| GET    | `/alerts`  | Recent alerts; param: `limit` (default 50)                            |
+| GET    | `/runs`    | List of drying runs with start/end times                               |
+| GET    | `/health`  | Daemon uptime, last packet received timestamp, total packet count      |
+
+**Example `/history` response (columnar format for Kivy plotting):**
+
+```json
+{
+  "fields": ["ts", "temp_lumber", "humidity_lumber", "mc_maple"],
+  "rows": [
+    [1700000000, 52.3, 61.2, 18.4],
+    [1700000030, 52.5, 60.9, 18.3]
+  ]
+}
+```
+
+The columnar format minimises payload size for long runs -- more efficient than an array
+of objects when plotting hundreds or thousands of data points.
+
+---
+
+## Phone Notifications -- ntfy.sh
+
+The Pi4 daemon POSTs directly to ntfy.sh on alert receipt. No MQTT broker or separate
+notification script required.
 
 ```python
-# On Pi4/laptop: kiln_notify.py
-import paho.mqtt.client as mqtt
+# notifier.py
 import requests
 
-def on_message(client, userdata, msg):
-    import json
-    data = json.loads(msg.payload)
-    requests.post(
-        "https://ntfy.sh/your-kiln-topic",   # choose a unique topic name
-        data=f"{data['code']}: {data['message']}",
-        headers={"Priority": "high", "Tags": "fire"}
-    )
-
-client = mqtt.Client()
-client.on_message = on_message
-client.connect("localhost", 1883)
-client.subscribe("kiln/alert")
-client.loop_forever()
+def send_alert(topic, code, message):
+    try:
+        requests.post(
+            f"https://ntfy.sh/{topic}",
+            data=f"{code}: {message}",
+            headers={"Priority": "high", "Tags": "warning"},
+            timeout=5
+        )
+    except Exception:
+        pass  # never let notification failure affect daemon operation
 ```
 
-Install ntfy app on phone, subscribe to `your-kiln-topic`. Done.
-
-### Option B -- Home Assistant
-
-If Home Assistant is already running on the Pi4, add an MQTT sensor for `kiln/telemetry`
-and automation triggers on `kiln/alert`. No additional code needed beyond HA configuration.
+Install the ntfy app on phone and subscribe to the configured topic name. Alert delivery
+is best-effort -- the kiln runs safely whether or not the notification goes through.
 
 ---
 
-## BOM Additions
+## Systemd Service
 
-| Item                                   | Qty | Est. Cost (CAD) | Notes                                    |
-|----------------------------------------|-----|-----------------|------------------------------------------|
-| AI-Thinker Ra-02 433 MHz LoRa module   | 2   | $6-10           | AliExpress; verify 433 MHz, not 915 MHz  |
-| u.FL to SMA pigtail + 433 MHz antenna  | 2   | often included  | Check listing; otherwise ~$2 each        |
-| 100 nF ceramic capacitor (decoupling)  | 2   | ~$0.10          | Likely already in parts stock            |
+```ini
+# /etc/systemd/system/kiln-server.service
+[Unit]
+Description=Kiln LoRa Telemetry Server
+After=network.target
 
-The ESP32-WROOM-32 devboard is already owned ($0).
+[Service]
+ExecStart=/usr/bin/python3 -m kiln_server
+WorkingDirectory=/home/pi/kiln_server
+Restart=always
+RestartSec=5
+User=pi
+
+[Install]
+WantedBy=multi-user.target
+```
+
+Enable: `sudo systemctl enable kiln-server && sudo systemctl start kiln-server`
 
 ---
 
-## Testing Plan
+## Bench Test Plan
 
-### Bench Test (at home, short range)
+Both Pi4 units are identical -- the bench test exactly duplicates the cottage deployment.
+Only `config.py` changes between environments.
 
-1. Wire both Ra-02 modules per wiring tables above
-2. Load minimal MicroPython `lora_test.py` on Pico -- sends a packet every 5s
-3. Verify TxDone flag is seen via register polling within expected airtime window
-4. Flash ESP32 gateway sketch with home WiFi credentials and laptop MQTT broker IP
-5. Install Mosquitto on laptop: `brew install mosquitto` / `apt install mosquitto`
-6. Subscribe on laptop: `mosquitto_sub -t "kiln/#" -v`
-7. Verify packets appearing with correct JSON structure
-8. Verify RSSI/SNR values are reasonable (will be very strong at short range -- expected)
-9. Test alert path: force a LORA_TIMEOUT by pulling CS high during TX; verify alert fires
+**End-to-end bench test:**
+1. Wire bench Pi4 to Ra-02 per Pi4 wiring table above
+2. Enable SPI: `sudo raspi-config` -> Interface Options -> SPI -> Enable; reboot
+3. Install dependencies: `pip install spidev RPi.GPIO flask requests`
+4. Start daemon: `python -m kiln_server`
+5. Wire Pico to Ra-02 per Pico wiring table; flash real `lib/lora.py` (once written)
+6. Run `lora_test.py` on Pico -- transmit a packet every 5s
+7. Confirm rows in SQLite: `sqlite3 kiln_data.db "SELECT * FROM telemetry LIMIT 5;"`
+8. Confirm REST API: `curl http://localhost:8080/status`
+9. Trigger a test alert from Pico; confirm ntfy.sh notification on phone
+10. Short-range RSSI will be very strong (-40 to -60 dBm) -- that is expected
 
-### Pre-Deployment Test (at cottage, full path)
+**Pre-deployment check at cottage:**
+1. Deploy cottage Pi4 with identical setup; update `config.py` for cottage network
+2. Start `kiln_server` as systemd service
+3. Power Pico at kiln location
+4. Query `/health` -- watch `last_packet_ts` and packet count increment
+5. Target RSSI: better than -115 dBm at SF9. Expect -90 to -105 dBm for 200m wooded path.
+6. If RSSI marginal, increase SF to SF10 or SF11 in `config.py` and Pico constructor
+   (3-6 dB link budget gain per SF step, at cost of longer air time)
 
-1. Swap `config.h` to cottage WiFi credentials and Pi4 MQTT broker IP
-2. Flash ESP32, place at cottage
-3. Power kiln Pico from bench supply at kiln location
-4. Monitor `kiln/gateway` topic -- watch `last_lora_rssi` and `packets_missed`
-5. Target RSSI: better than -115 dBm (SX1278 sensitivity at SF9). Expect -90 to -105 dBm
-   for 200m wooded path at 433 MHz.
-6. If RSSI is marginal, increase spreading factor to SF10 or SF11 (reduces data rate but
-   improves link budget by 3-6 dB per step)
+---
+
+## BOM
+
+| Item                                    | Qty | Est. Cost (CAD) | Notes                          |
+|-----------------------------------------|-----|-----------------|--------------------------------|
+| AI-Thinker Ra-02 433 MHz + IPEX antenna | 2   | ~$8             | Ordered from AliExpress        |
+| 100 nF ceramic capacitor                | 2   | ~$0.10          | Decoupling; likely in stock    |
+| Female-female jumper wires              | 6   | ~$1             | Pi4 GPIO header connection     |
+
+Both Pi4 units are already owned. ESP32-WROOM-32 devboard retained as an optional tool
+for bench-testing Pico LoRa TX before the Pi4 daemon is ready; not part of production
+system.
 
 ---
 
 ## Open Items
 
-- [ ] Source Ra-02 modules (AliExpress -- allow 3-4 weeks shipping)
-- [ ] Decide on notification stack: ntfy.sh vs Home Assistant
-- [ ] Implement `lib/lora.py` on Pico (Claude Code) -- no irq pin; TX polling only
-- [ ] Implement ESP32 gateway sketch (Claude Code or Arduino IDE direct)
-- [ ] Set up Mosquitto on laptop for bench testing
+- [x] Ra-02 modules ordered (arriving ~2 weeks)
+- [x] GPIO pin assignments finalised: GP10-13 SPI1, GP20 IRQ, GP28 RST
+- [x] Moisture probe AC excitation confirmed on GP6/GP7 in `lib/moisture.py`
+- [x] Architecture decision: Ra-02 wired directly to Pi4; no ESP32 in production
+- [ ] Implement real `lib/lora.py` on Pico to replace mock (after Ra-02 arrives)
+- [ ] Implement `kiln_server/` Python package (Claude Code)
+- [ ] Enable SPI on bench Pi4 and wire Ra-02
+- [ ] Bench test: Pico TX -> Pi4 RX -> SQLite -> REST API -> ntfy.sh
+- [ ] Choose ntfy.sh topic name
+- [ ] Write and enable systemd unit file on cottage Pi4
+- [ ] Kivy app REST API integration (separate spec, to be written)

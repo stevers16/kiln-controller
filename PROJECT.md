@@ -19,17 +19,22 @@ and all tests pass. Moisture probe module is implemented and tested on hardware.
 Mock LoRa transmitter driver is complete (hardware on order). Drying schedule
 controller is complete with FPL-based schedules for hard maple and beech.
 
+Cottage-side architecture decided: Ra-02 LoRa receiver wired directly to Pi4 SPI
+bus. Pi4 runs a Python daemon (`kiln_server`) that receives LoRa packets, stores
+telemetry in SQLite, serves a REST API for the Kivy phone app, and pushes alerts
+via ntfy.sh. No ESP32 or MQTT broker in production system.
+
 ---
 
-## Modules — status summary
+## Modules -- status summary
 
 | File | Status | Tested on hardware |
 |---|---|---|
-| `lib/circulation.py` | Complete | Yes — all tests pass |
-| `lib/exhaust.py` | Complete | Yes — all tests pass |
-| `lib/sdcard.py` | Complete | Yes — all tests pass |
-| `lib/logger.py` | Complete | Yes — all tests pass |
-| `lib/vents.py` | Complete | Yes — all tests pass |
+| `lib/circulation.py` | Complete | Yes -- all tests pass |
+| `lib/exhaust.py` | Complete | Yes -- all tests pass |
+| `lib/sdcard.py` | Complete | Yes -- all tests pass |
+| `lib/logger.py` | Complete | Yes -- all tests pass |
+| `lib/vents.py` | Complete | Yes -- all tests pass |
 | `lib/current.py` | Complete | Basic test passing on hardware |
 | `lib/SHT31sensors.py` | Complete | Yes -- all tests pass |
 | `lib/heater.py` | Complete | Yes -- all tests pass |
@@ -43,7 +48,7 @@ controller is complete with FPL-based schedules for hard maple and beech.
 
 ## lib/circulation.py
 
-Controls 3× 120mm 4-pin PWM circulation fans wired as a group.
+Controls 3x 120mm 4-pin PWM circulation fans wired as a group.
 
 - PWM on GP17, MOSFET gate on GP19
 - `on(speed_percent)` clamps to `MIN_START_PCT=20` to prevent stall
@@ -62,7 +67,7 @@ Controls 3× 120mm 4-pin PWM circulation fans wired as a group.
 
 Controls the 80mm Foxconn PVA080G12Q exhaust fan.
 
-- PWM on GP16, MOSFET gate on GP21 (separate pins — gate is the hard on/off)
+- PWM on GP16, MOSFET gate on GP21 (separate pins -- gate is the hard on/off)
 - Gate initialised LOW at boot before PWM is configured
 - `on(speed_percent)`: drives gate HIGH, then sets PWM duty
 - `off()`: zeros PWM duty first, then pulls gate LOW
@@ -77,12 +82,12 @@ Controls the 80mm Foxconn PVA080G12Q exhaust fan.
 
 Wraps the MicroPython SPI sdcard driver and `uos.mount()`.
 
-- SPI0 at 400 kHz init speed (GP2=SCK, GP3=MOSI, GP4=MISO, GP5=CS) — pin constants
+- SPI0 at 400 kHz init speed (GP2=SCK, GP3=MOSI, GP4=MISO, GP5=CS) -- pin constants
   were briefly transposed (MISO/SCK swapped) causing a "bad SDK pin" error; corrected
 - CS pin driven HIGH before SPI is initialised (prevents spurious transactions)
 - Uses `uos.VfsFat(sd)` wrapper before `uos.mount()` (required in MicroPython 1.20+)
 - Imports the raw driver as `sdcard_driver` (not `sdcard`) to avoid a naming
-  conflict with this wrapper file — see deployment note below
+  conflict with this wrapper file -- see deployment note below
 - Silent fail: prints REPL warning, returns `False` on any exception
 - `is_mounted()`, `mount_point` property, safe `unmount()`
 - `listdir(subdir="")`: returns sorted list of filenames at the SD root or a
@@ -118,14 +123,14 @@ Single logging service for the entire kiln firmware.
   floats to 2 dp; bools as `1`/`0`; always flushes
 - Timestamp falls back to `+NNNNNs` elapsed seconds if RTC not yet set (year < 2024)
 - File suffix falls back to `run_NNNNN` if RTC not set
-- Silent fail on all SD writes — kiln keeps running if card fails mid-run
+- Silent fail on all SD writes -- kiln keeps running if card fails mid-run
 
 **Integration test:** `test_logging.py` at repo root exercises logger + circulation
 fan events end-to-end. All tests pass on hardware.
 
 ---
 
-## Logging spec — implementation decisions
+## Logging spec -- implementation decisions
 
 These decisions were made during the logging_spec.md work and differ from defaults
 worth noting:
@@ -150,7 +155,7 @@ worth noting:
 
 ## lib/vents.py
 
-Controls 2× MG90S servos driving butterfly-style intake and exhaust dampers.
+Controls 2x MG90S servos driving butterfly-style intake and exhaust dampers.
 
 - PWM on GP14 (intake) and GP15 (exhaust); 50 Hz standard hobby servo frequency
 - Both servos always commanded together (open or closed)
@@ -212,7 +217,8 @@ Reads temperature and relative humidity from two SHT31-D sensors over I2C.
 - Silent fail: returns None for any sensor that fails (CRC, I2C, timeout)
 - Accepts optional `logger=None`; calls `logger.event("sensors", ..., level="WARNING")` on failures
 - No third-party libraries -- SHT31 protocol implemented directly
-- I2C instance created internally (not shared) -- will need refactoring when main.py wires shared bus with INA219
+- Accepts optional `i2c` parameter for shared bus; creates its own I2C0 instance if not provided
+- When `i2c` is passed in, `sda_pin`/`scl_pin`/`freq` are ignored (bus already configured)
 
 ---
 
@@ -269,10 +275,12 @@ Reads wood moisture content (MC%) from two resistive probe channels.
 - Species correction offsets: maple -0.5, beech -0.3, oak +0.5, pine +0.3
 - `read_resistance()` returns raw ohms; `read()` returns MC% + ohms
 - `read_with_temp_correction(temp_c)` applies -0.06 MC%/degC above 20degC reference
+- `set_calibration(channel_1_offset, channel_2_offset)` applies per-channel MC% offsets loaded from SD card calibration.json at boot; corrected MC% = raw MC% + offset
 - Module-level `resistance_to_mc(r_ohms, species)` function for standalone use
 - Accepts optional `logger=None`; logs WARNING on None readings or out-of-range resistance
 - Silent fail: excitation pin forced LOW on any exception
-- 8 unit tests included; test 5 requires manual probe disconnect
+- 9 unit tests included; test 5 requires manual probe disconnect; test 9 covers calibration offsets
+- GP6/GP7 used for AC excitation (moved from GP12/GP13 to free SPI1 block for LoRa)
 
 ---
 
@@ -282,7 +290,8 @@ Mock LoRa transmitter driver for AI-Thinker Ra-02 (SX1278, 433 MHz).
 
 - Mock implementation for development while Ra-02 modules are on order
 - SPI1 on GP10 (SCK), GP11 (MOSI), GP12 (MISO), GP13 (CS), RST on GP28
-- TX-only -- no receive path on the Pico side (DIO0 not connected)
+- DIO0 interrupt on GP20 (wired but not used in TX-only mock)
+- TX-only -- no receive path on the Pico side
 - `send(payload: bytes) -> bool` -- raw byte transmission (mock always returns True)
 - `send_telemetry(data: dict) -> bool` -- JSON serialise and send
 - `send_alert(code: str, message: str) -> bool` -- with 3x retry, 2s spacing
@@ -290,6 +299,10 @@ Mock LoRa transmitter driver for AI-Thinker Ra-02 (SX1278, 433 MHz).
 - `is_mock` property returns True; `tx_count` and `last_payload` for inspection
 - Accepts optional `logger=None`; source string "lora"
 - 12 unit tests included, all mock-based
+
+**Real driver (pending Ra-02 hardware):** Will replace mock. Same interface, same pin
+assignments. `is_mock` returns False. Implements SX1278 register configuration and
+TxDone polling (reg 0x12 bit 3, 5ms poll interval, 2s timeout).
 
 ---
 
@@ -315,13 +328,48 @@ Drying schedule controller -- top-level control logic for multi-stage kiln dryin
 
 ---
 
+## Cottage-side architecture
+
+**Decision:** Ra-02 LoRa receiver wired directly to Pi4 GPIO/SPI0. No ESP32 or MQTT
+broker in production system.
+
+**Data flow:**
+```
+Pico --> SPI1 --> Ra-02 ~~LoRa~~ Ra-02 --> SPI0 --> Pi4 kiln_server daemon
+                                                 --> SQLite (telemetry + alerts + runs)
+                                                 --> REST API (port 8080) --> Kivy app
+                                                 --> ntfy.sh --> phone notifications
+```
+
+**Pi4 `kiln_server` package** (not yet implemented):
+- `lora_receiver.py` -- SX1278 init, DIO0 interrupt-driven receive loop
+- `database.py` -- SQLite insert and query (telemetry, alerts, runs tables)
+- `api.py` -- Flask/FastAPI REST endpoints: /status, /history, /alerts, /runs, /health
+- `notifier.py` -- ntfy.sh HTTP POST on alert receipt
+- `config.py` -- only file that differs between bench Pi4 and cottage Pi4
+
+**SQLite schema:** telemetry table stores one row per LoRa packet (30s interval);
+alerts table stores fault events; runs table tracks drying run start/end.
+
+**REST API `/history` response** uses columnar format (fields array + rows array of
+arrays) to minimise payload size for Kivy plot queries over long runs.
+
+**Bench testing:** Spare Pi4 available at home. Bench setup is identical to cottage
+deployment -- only `config.py` network addresses differ. ESP32-WROOM-32 (owned) can
+be used to test Pico TX before Pi4 daemon is written, but is not part of production.
+
+**Spec:** See `lora_telemetry_spec.md` for full wiring tables, SQLite schema, REST API
+endpoint definitions, and test plan.
+
+---
+
 ## What still needs building
 
 In rough priority order:
 
-1. **Wi-Fi / REST API** -- AP mode, HTTP server, time sync, mobile app interface
-2. **`main.py`** -- entry point wiring all modules together
-3. **LoRa real driver** -- replace mock lora.py when Ra-02 hardware arrives
-4. **ESP32 gateway sketch** -- RadioLib + MQTT forwarding
-5. **Kivy Android app** -- mobile interface for monitoring and control
-6. ** RPi 4 telemetry server** -- MQTT broker, LoRa receiver, REST API, web dashboard
+1. **`main.py`** -- entry point wiring all modules together
+2. **Wi-Fi / REST API** -- AP mode, HTTP server, time sync, mobile app interface (Pico side)
+3. **Real `lib/lora.py`** -- replace mock when Ra-02 hardware arrives
+4. **`kiln_server/` Pi4 daemon** -- LoRa RX, SQLite storage, REST API, ntfy.sh alerts
+5. **Kivy Android app** -- mobile interface; queries Pi4 REST API for history/plots,
+   Pico AP REST API for live control

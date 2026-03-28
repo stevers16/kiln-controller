@@ -150,9 +150,28 @@ class MoistureProbe:
                         level="WARNING",
                     )
 
+        # Per-channel calibration offsets (MC% points, loaded from SD)
+        self._cal_offset_1 = 0.0
+        self._cal_offset_2 = 0.0
+
         if self._logger:
             self._logger.event(
                 "moisture", f"Moisture probe init -- ch1={species_1} ch2={species_2}"
+            )
+
+    def set_calibration(self, channel_1_offset=0.0, channel_2_offset=0.0):
+        """
+        Set per-channel calibration offsets (MC% points).
+
+        Corrected MC% = raw MC% + offset. Offsets may be negative or positive.
+        Typically loaded from calibration.json on the SD card at boot.
+        """
+        self._cal_offset_1 = float(channel_1_offset)
+        self._cal_offset_2 = float(channel_2_offset)
+        if self._logger:
+            self._logger.event(
+                "moisture",
+                f"Calibration set -- ch1_offset={self._cal_offset_1} ch2_offset={self._cal_offset_2}",
             )
 
     def _read_channel(self, excite_pin, adc, samples=SAMPLE_COUNT):
@@ -227,6 +246,12 @@ class MoistureProbe:
 
         ch1_mc = resistance_to_mc(ch1_ohms, self._species_1)
         ch2_mc = resistance_to_mc(ch2_ohms, self._species_2)
+
+        # Apply per-channel calibration offsets
+        if ch1_mc is not None:
+            ch1_mc += self._cal_offset_1
+        if ch2_mc is not None:
+            ch2_mc += self._cal_offset_2
 
         if ch1_mc is None and self._logger:
             if ch1_ohms is None:
@@ -429,6 +454,40 @@ def test():
         all_passed &= warn_logged
     else:
         print("  INFO  - Logger WARNING test: probes connected, no None to trigger")
+
+    # --- Test 9: set_calibration() offsets ---
+    mock2 = MockLogger()
+    cal_probe = MoistureProbe(logger=mock2)
+    # Default offsets should be 0.0
+    ok_defaults = cal_probe._cal_offset_1 == 0.0 and cal_probe._cal_offset_2 == 0.0
+    print(f"  {'PASS' if ok_defaults else 'FAIL'} - Calibration: default offsets are 0.0")
+    all_passed &= ok_defaults
+
+    cal_probe.set_calibration(channel_1_offset=-1.2, channel_2_offset=0.8)
+    ok_set = cal_probe._cal_offset_1 == -1.2 and cal_probe._cal_offset_2 == 0.8
+    print(f"  {'PASS' if ok_set else 'FAIL'} - Calibration: offsets set correctly")
+    all_passed &= ok_set
+
+    # Verify calibration event was logged
+    cal_logged = any("calibration" in c[1].lower() for c in mock2.calls)
+    print(f"  {'PASS' if cal_logged else 'FAIL'} - Calibration: set event logged")
+    all_passed &= cal_logged
+
+    # Verify offset is applied to MC% reading
+    reading_uncal = probe.read()  # probe has 0.0 offsets
+    cal_probe_2 = MoistureProbe()
+    cal_probe_2.set_calibration(channel_1_offset=-2.0, channel_2_offset=1.5)
+    reading_cal = cal_probe_2.read()
+    if reading_uncal["ch1_mc_pct"] is not None and reading_cal["ch1_mc_pct"] is not None:
+        diff = reading_uncal["ch1_mc_pct"] - reading_cal["ch1_mc_pct"]
+        # Expect ~2.0 difference (allow variance from separate reads)
+        ok_applied = abs(diff - 2.0) < 1.0
+        print(
+            f"  {'PASS' if ok_applied else 'FAIL'} - Calibration: offset applied to MC% (diff={diff:.2f}, expect ~2.0)"
+        )
+        all_passed &= ok_applied
+    else:
+        print("  SKIP - Calibration offset verification requires probes connected")
 
     print(f"\n{'All tests passed!' if all_passed else 'Some tests FAILED'}")
     return all_passed

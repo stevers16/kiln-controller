@@ -35,19 +35,22 @@ class SHT31Sensors:
     fails rather than raising -- the kiln keeps running with partial data.
     """
 
-    def __init__(self, sda_pin=SDA_PIN, scl_pin=SCL_PIN, freq=I2C_FREQ,
+    def __init__(self, i2c=None, sda_pin=SDA_PIN, scl_pin=SCL_PIN, freq=I2C_FREQ,
                  logger=None):
         self._logger = logger
-        try:
-            self._i2c = machine.I2C(
-                0,
-                sda=machine.Pin(sda_pin),
-                scl=machine.Pin(scl_pin),
-                freq=freq,
-            )
-        except Exception as e:
-            print(f"SHT31Sensors: I2C init failed: {e}")
-            raise
+        if i2c is not None:
+            self._i2c = i2c
+        else:
+            try:
+                self._i2c = machine.I2C(
+                    0,
+                    sda=machine.Pin(sda_pin),
+                    scl=machine.Pin(scl_pin),
+                    freq=freq,
+                )
+            except Exception as e:
+                print(f"SHT31Sensors: I2C init failed: {e}")
+                raise
 
         # Verify both sensors are present on the bus
         found = self._i2c.scan()
