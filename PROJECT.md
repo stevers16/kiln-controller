@@ -10,11 +10,12 @@ state of the software side of this project.
 
 ## Overall status
 
-Early firmware stage. Nine modules exist in `lib/`. No `main.py` yet. The logging
+Early firmware stage. Ten modules exist in `lib/`. No `main.py` yet. The logging
 stack is complete and fully tested on hardware. Vent servos are working. Current
 monitoring (INA219) is implemented and basic hardware test confirmed passing.
 SHT31 dual sensor module is implemented and tested on hardware. Heater SSR driver
 is implemented and tested. UART display driver is implemented and all tests pass.
+Moisture probe module is implemented and tested on hardware.
 
 ---
 
@@ -31,6 +32,7 @@ is implemented and tested. UART display driver is implemented and all tests pass
 | `lib/SHT31sensors.py` | Complete | Yes -- all tests pass |
 | `lib/heater.py` | Complete | Yes -- all tests pass |
 | `lib/display.py` | Complete | Yes -- all tests pass |
+| `lib/moisture.py` | Complete | Yes -- all tests pass |
 | `main.py` | Not written | -- |
 
 ---
@@ -121,7 +123,7 @@ fan events end-to-end. All tests pass on hardware.
 
 ## Logging spec — implementation decisions
 
-These decisions were made during the LOGGING_SPEC.md work and differ from defaults
+These decisions were made during the logging_spec.md work and differ from defaults
 worth noting:
 
 - **Driver naming:** Raw sdcard driver deployed as `sdcard_driver.py` to avoid
@@ -252,13 +254,29 @@ Driver for JC035-HVGA-ST-02-V02 3.5" UART serial display.
 
 ---
 
+## lib/moisture.py
+
+Reads wood moisture content (MC%) from two resistive probe channels.
+
+- Ch1: excitation GP12, ADC GP26 (maple); Ch2: excitation GP13, ADC GP27 (beech)
+- AC excitation: drive HIGH -> 15ms settle -> 5 ADC samples -> drive LOW -> 10ms discharge
+- 100kohm reference resistor voltage divider; R_wood calculated from ADC voltage
+- Log-linear interpolation on 12-point resistance-to-MC% lookup table (FPL Wood Handbook)
+- Species correction offsets: maple -0.5, beech -0.3, oak +0.5, pine +0.3
+- `read_resistance()` returns raw ohms; `read()` returns MC% + ohms
+- `read_with_temp_correction(temp_c)` applies -0.06 MC%/degC above 20degC reference
+- Module-level `resistance_to_mc(r_ohms, species)` function for standalone use
+- Accepts optional `logger=None`; logs WARNING on None readings or out-of-range resistance
+- Silent fail: excitation pin forced LOW on any exception
+- 8 unit tests included; test 5 requires manual probe disconnect
+
+---
+
 ## What still needs building
 
 In rough priority order:
 
-1. **Moisture probes** (`lib/moisture.py`) -- ADC on GP26/GP27, AC excitation on
-   GP6/GP7
-2. **Drying schedule controller** -- multi-stage logic consuming sensor readings
+1. **Drying schedule controller** -- multi-stage logic consuming sensor readings
 3. **Wi-Fi / REST API** -- AP mode, HTTP server, time sync, mobile app interface
 4. **LoRa wireless telemetry** -- Telemetry and notification push to cottage wi-fi gateway
 5. **`main.py`** -- entry point wiring all modules together
