@@ -10,14 +10,19 @@ state of the software side of this project.
 
 ## Overall status
 
-Firmware nearing integration stage. Twelve modules exist in `lib/`. No `main.py`
-yet. The logging stack is complete and fully tested on hardware. Vent servos are
-working. Current monitoring (INA219) is implemented and basic hardware test
-confirmed passing. SHT31 dual sensor module is implemented and tested on hardware.
-Heater SSR driver is implemented and tested. UART display driver is implemented
-and all tests pass. Moisture probe module is implemented and tested on hardware.
-Mock LoRa transmitter driver is complete (hardware on order). Drying schedule
-controller is complete with FPL-based schedules for hard maple and beech.
+Firmware at integration stage. Twelve modules exist in `lib/`. `main.py` and
+`config.py` are implemented -- entry point wires all modules together, starts
+WiFi AP, runs asyncio HTTP REST API server (24 endpoints), control loop,
+display pages, LoRa heartbeat, and system test suite. The logging stack is
+complete and fully tested on hardware. Vent servos are working. Current
+monitoring (INA219) is implemented and basic hardware test confirmed passing.
+SHT31 dual sensor module is implemented and tested on hardware (refactored to
+accept shared I2C bus). Heater SSR driver is implemented and tested. UART
+display driver is implemented and all tests pass. Moisture probe module is
+implemented with per-channel calibration offsets. Mock LoRa transmitter driver
+is complete (hardware on order). Drying schedule controller is complete with
+FPL-based schedules for hard maple and beech, plus public advance() method for
+manual stage advancement via REST API.
 
 Cottage-side architecture decided: Ra-02 LoRa receiver wired directly to Pi4 SPI
 bus. Pi4 runs a Python daemon (`kiln_server`) that receives LoRa packets, stores
@@ -42,7 +47,8 @@ via ntfy.sh. No ESP32 or MQTT broker in production system.
 | `lib/moisture.py` | Complete | Yes -- all tests pass |
 | `lib/lora.py` | Mock complete | Yes -- mock tests pass on hardware |
 | `lib/schedule.py` | Complete | Yes -- mock-based tests pass on hardware |
-| `main.py` | Not written | -- |
+| `main.py` | Complete | Pending hardware integration test |
+| `config.py` | Complete | Template -- change passwords before deploy |
 
 ---
 
@@ -363,13 +369,37 @@ endpoint definitions, and test plan.
 
 ---
 
+## main.py
+
+Entry point wiring all `lib/` modules together. Runs at boot.
+
+- Instantiates all 12 hardware modules in safe order with shared I2C bus
+- Starts WiFi AP (SSID/password from config.py)
+- Runs asyncio HTTP server on port 80 with 24 REST API endpoints
+- Control loop: `schedule.tick()` + status cache update at `tick_interval_s`
+- Display loop: `display.tick()` every 100ms with 4 registered pages (status, sensors, moisture, system)
+- LoRa heartbeat: sends telemetry every 5 min when no run is active
+- RPM reader: caches exhaust fan RPM every 10s (avoids blocking 2s tach read in status path)
+- System test suite: 18 tests (unit, integration, commissioning) run as async task via POST /test/run
+- Calibration loading from SD card `calibration.json` at boot
+- Fatal exception handler: safe shutdown (heater off, vents open, fans off) then reboot after 5s
+- Authentication via `X-Kiln-Key` header on all endpoints except /health and /version
+
+## config.py
+
+Template configuration file with defaults. Must be edited before first deployment.
+
+- VERSION, AP_SSID, AP_PASSWORD, API_KEY
+- USE_MOCK_LORA, LORA_SF, LORA_FREQ_MHZ
+- DEFAULT_SCHEDULE, DISPLAY_TIMEOUT_S, LOG_FLUSH_INTERVAL_S
+
+---
+
 ## What still needs building
 
 In rough priority order:
 
-1. **`main.py`** -- entry point wiring all modules together
-2. **Wi-Fi / REST API** -- AP mode, HTTP server, time sync, mobile app interface (Pico side)
-3. **Real `lib/lora.py`** -- replace mock when Ra-02 hardware arrives
-4. **`kiln_server/` Pi4 daemon** -- LoRa RX, SQLite storage, REST API, ntfy.sh alerts
-5. **Kivy Android app** -- mobile interface; queries Pi4 REST API for history/plots,
+1. **Real `lib/lora.py`** -- replace mock when Ra-02 hardware arrives
+2. **`kiln_server/` Pi4 daemon** -- LoRa RX, SQLite storage, REST API, ntfy.sh alerts
+3. **Kivy Android app** -- mobile interface; queries Pi4 REST API for history/plots,
    Pico AP REST API for live control

@@ -190,6 +190,30 @@ class KilnSchedule:
         if self._logger:
             self._logger.end_run()
 
+    def advance(self):
+        """
+        Manually advance to the next stage, bypassing time and MC% checks.
+
+        Returns (old_index, new_index, new_name) on success.
+        Raises RuntimeError if no run active or already on last stage.
+        """
+        if not self._running:
+            raise RuntimeError("No run active")
+        stages = self._schedule["stages"]
+        if self._stage_index >= len(stages) - 1:
+            raise RuntimeError("Already on last stage")
+        old_index = self._stage_index
+        temp_c = 0.0
+        rh_pct = 0.0
+        if self._last_sensor_read:
+            temp_c = self._last_sensor_read.get("temp_lumber", 0.0) or 0.0
+            rh_pct = self._last_sensor_read.get("rh_lumber", 0.0) or 0.0
+        self._log_event(f"Manual advance from stage {old_index}")
+        self._advance_stage(temp_c, rh_pct)
+        new_index = self._stage_index
+        new_name = stages[new_index]["name"] if new_index < len(stages) else ""
+        return (old_index, new_index, new_name)
+
     def tick(self):
         """
         Execute one control cycle. Called from main.py main loop.
