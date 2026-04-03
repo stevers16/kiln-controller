@@ -1551,10 +1551,9 @@ async def _run_single_test(tid):
 
     if tid == "lora_mock_tx":
         ok = lora.send_telemetry({"test": True})
-        mock_note = " (mock)" if lora.is_mock else ""
         if ok:
-            return ("pass", f"send_telemetry returned True{mock_note}")
-        return ("fail", f"send_telemetry returned False{mock_note}")
+            return ("pass", "send_telemetry returned True")
+        return ("fail", "send_telemetry returned False")
 
     if tid == "schedule_load":
         ok = schedule.load(f"schedules/{config.DEFAULT_SCHEDULE}")
@@ -1600,12 +1599,10 @@ async def _run_single_test(tid):
         return ("fail", f"Temp only rose {rise:.1f}C in 90s")
 
     if tid == "lora_tx_real":
-        if config.USE_MOCK_LORA or lora.is_mock:
-            return ("skip", "Mock LoRa -- real TX not available")
         ok = lora.send_telemetry({"test": True, "ts": time.time()})
         if ok:
-            return ("pass", "Real LoRa TX succeeded")
-        return ("fail", "Real LoRa TX failed")
+            return ("pass", "LoRa TX succeeded")
+        return ("fail", "LoRa TX failed")
 
     if tid == "rtc_set":
         if _rtc_is_set():

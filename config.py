@@ -11,7 +11,6 @@ AP_PASSWORD = "KampSteve"  # WPA2; empty string for open AP
 API_KEY = "MapleBeech"  # must match Kivy app Settings
 
 # LoRa
-USE_MOCK_LORA = True  # set False when Ra-02 hardware is installed
 LORA_SF = 9
 LORA_FREQ_MHZ = 433.0
 

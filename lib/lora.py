@@ -1,22 +1,20 @@
 # lib/lora.py
 #
-# Mock LoRa transmitter driver for AI-Thinker Ra-02 (SX1278, 433 MHz).
-# This is a mock implementation for development while hardware is on order.
-# Replace with real SPI/SX1278 register access when Ra-02 modules arrive.
+# LoRa transmitter driver for AI-Thinker Ra-02 (SX1278, 433 MHz).
+# TX-only -- no receive path on the Pico side. DIO0 is not connected;
+# TX completion is confirmed by polling RegIrqFlags (bit 3, TxDone).
 #
-# The real driver will use SPI1 on GP10-GP13 with RST on GP28.
-# DIO0 is not connected on the Pico side -- TX completion uses register
-# polling (RegIrqFlags bit 3, TxDone).
-#
-# Wiring summary (from LORA_TELEMETRY_SPEC.md):
+# Wiring (from lora_telemetry_spec.md):
 #   Ra-02 SCK  -> GP10 (SPI1 SCK)
 #   Ra-02 MOSI -> GP11 (SPI1 TX)
 #   Ra-02 MISO -> GP12 (SPI1 RX)
 #   Ra-02 NSS  -> GP13 (SPI1 CS, active low)
 #   Ra-02 RST  -> GP28 (active low)
+#   Ra-02 DIO0 -> not connected
 #   Ra-02 VCC  -> 3.3V (Pin 36)
 #   Ra-02 GND  -> GND (Pin 38)
 
+import machine
 import time
 
 try:
@@ -24,7 +22,7 @@ try:
 except ImportError:
     import json
 
-# --- Constants ---
+# --- Pin defaults ---
 SPI_ID          = 1
 SCK_PIN         = 10
 MOSI_PIN        = 11
@@ -38,63 +36,194 @@ CODING_RATE     = 5        # 4/5
 TX_POWER_DBM    = 17
 PREAMBLE_LEN    = 8
 TX_TIMEOUT_MS   = 2000
-HEARTBEAT_S     = 30
+TX_POLL_MS      = 5
 ALERT_RETRIES   = 3
 ALERT_RETRY_S   = 2
 
-# Mock simulated TX airtime (ms per byte at SF9/125kHz, approximate)
-_MOCK_AIRTIME_MS_PER_BYTE = 3
+# --- SX1278 register addresses ---
+_REG_FIFO           = 0x00
+_REG_OP_MODE        = 0x01
+_REG_FRF_MSB        = 0x06
+_REG_FRF_MID        = 0x07
+_REG_FRF_LSB        = 0x08
+_REG_PA_CONFIG      = 0x09
+_REG_OCP            = 0x0B
+_REG_LNA            = 0x0C
+_REG_FIFO_ADDR_PTR  = 0x0D
+_REG_FIFO_TX_BASE   = 0x0E
+_REG_IRQ_FLAGS      = 0x12
+_REG_MODEM_CONFIG_1 = 0x1D
+_REG_MODEM_CONFIG_2 = 0x1E
+_REG_PREAMBLE_MSB   = 0x20
+_REG_PREAMBLE_LSB   = 0x21
+_REG_PAYLOAD_LENGTH = 0x22
+_REG_MODEM_CONFIG_3 = 0x26
+_REG_SYNC_WORD      = 0x39
+_REG_DIO_MAPPING_1  = 0x40
+_REG_VERSION        = 0x42
+_REG_PA_DAC         = 0x4D
+
+# --- SX1278 mode values ---
+_MODE_SLEEP         = 0x80  # LoRa + sleep
+_MODE_STDBY         = 0x81  # LoRa + standby
+_MODE_TX            = 0x83  # LoRa + TX
+
+# --- IRQ flag masks ---
+_IRQ_TX_DONE        = 0x08  # bit 3
+
+# --- SX1278 expected version ---
+_EXPECTED_VERSION   = 0x12
+
+# --- Crystal oscillator frequency ---
+_FXOSC = 32_000_000
+_FSTEP = _FXOSC / (1 << 19)  # 61.035 Hz
 
 
 class LoRa:
     """
-    Mock LoRa transmitter (Ra-02 / SX1278, 433 MHz).
+    LoRa transmitter driver for Ra-02 / SX1278, 433 MHz.
 
-    Simulates the send interface without real SPI hardware. All sends
-    succeed and are logged. Replace with real SX1278 register access
-    when hardware arrives.
+    TX-only. DIO0 is not connected -- TX completion is confirmed by
+    polling RegIrqFlags for TxDone. Uses SPI1 on GP10-GP13.
     """
 
     def __init__(self, spi_id=SPI_ID, sck=SCK_PIN, mosi=MOSI_PIN,
                  miso=MISO_PIN, cs=CS_PIN, rst=RST_PIN,
                  frequency=FREQUENCY, logger=None):
-        self._spi_id = spi_id
-        self._sck = sck
-        self._mosi = mosi
-        self._miso = miso
-        self._cs = cs
-        self._rst = rst
         self._frequency = frequency
         self._logger = logger
-
-        self._mock = True
         self._tx_count = 0
         self._last_payload = None
         self._initialised = False
 
-        # Simulate hardware init
+        # Hardware pin objects
+        self._cs = machine.Pin(cs, machine.Pin.OUT)
+        self._cs.high()  # deselect
+        self._rst = machine.Pin(rst, machine.Pin.OUT)
+        self._rst.high()
+
+        # SPI bus
+        self._spi = machine.SPI(
+            spi_id,
+            baudrate=1_000_000,
+            polarity=0,
+            phase=0,
+            sck=machine.Pin(sck),
+            mosi=machine.Pin(mosi),
+            miso=machine.Pin(miso),
+        )
+
+        # Init the radio
         try:
             self._init_radio()
             self._initialised = True
         except Exception as e:
             print(f"LoRa: init failed - {e}")
+            if self._logger:
+                self._logger.event("lora", f"Init failed: {e}", level="ERROR")
+
+    # ------------------------------------------------------------------
+    # SPI register access
+    # ------------------------------------------------------------------
+
+    def _read_reg(self, addr):
+        """Read a single register."""
+        self._cs.low()
+        self._spi.write(bytes([addr & 0x7F]))
+        result = self._spi.read(1)
+        self._cs.high()
+        return result[0]
+
+    def _write_reg(self, addr, value):
+        """Write a single register."""
+        self._cs.low()
+        self._spi.write(bytes([addr | 0x80, value]))
+        self._cs.high()
+
+    def _write_fifo(self, data):
+        """Write a block of bytes to the FIFO register."""
+        self._cs.low()
+        self._spi.write(bytes([_REG_FIFO | 0x80]))
+        self._spi.write(data)
+        self._cs.high()
+
+    # ------------------------------------------------------------------
+    # Radio initialisation
+    # ------------------------------------------------------------------
 
     def _init_radio(self):
-        """Mock radio initialisation (replaces SPI/register setup)."""
-        # Real implementation will:
-        #   1. Init SPI(spi_id, baudrate=1_000_000, sck=Pin(sck), ...)
-        #   2. Pulse RST low for 10ms then wait 10ms
-        #   3. Verify SX1278 version register (0x42, expect 0x12)
-        #   4. Set sleep mode, configure frequency, BW, SF, CR, TX power
-        #   5. Set preamble length
-        print(f"LoRa: mock init (SPI{self._spi_id}, "
-              f"{self._frequency / 1_000_000:.1f} MHz, "
-              f"SF{SPREADING_FACTOR}, "
+        """Configure the SX1278 for LoRa TX."""
+        # Hardware reset
+        self._rst.low()
+        time.sleep_ms(10)
+        self._rst.high()
+        time.sleep_ms(10)
+
+        # Verify chip version
+        version = self._read_reg(_REG_VERSION)
+        if version != _EXPECTED_VERSION:
+            raise RuntimeError(
+                f"SX1278 version 0x{version:02X}, expected 0x{_EXPECTED_VERSION:02X}"
+            )
+
+        # Set sleep mode (LoRa mode bit must be set in sleep first)
+        self._write_reg(_REG_OP_MODE, _MODE_SLEEP)
+        time.sleep_ms(10)
+
+        # Set frequency
+        frf = int(self._frequency / _FSTEP)
+        self._write_reg(_REG_FRF_MSB, (frf >> 16) & 0xFF)
+        self._write_reg(_REG_FRF_MID, (frf >> 8) & 0xFF)
+        self._write_reg(_REG_FRF_LSB, frf & 0xFF)
+
+        # Set TX FIFO base address to 0x00
+        self._write_reg(_REG_FIFO_TX_BASE, 0x00)
+
+        # PA config: PA_BOOST, max power, 17 dBm
+        # PaSelect=1, OutputPower=15 -> Pout = 2 + 15 = 17 dBm
+        self._write_reg(_REG_PA_CONFIG, 0x8F)
+
+        # OCP: enable, 120 mA (sufficient for 17 dBm PA_BOOST)
+        self._write_reg(_REG_OCP, 0x2B)
+
+        # PA DAC: default (not using +20 dBm mode)
+        self._write_reg(_REG_PA_DAC, 0x84)
+
+        # Modem config 1: BW 125kHz (0x7), CR 4/5 (0x1), explicit header (0x0)
+        self._write_reg(_REG_MODEM_CONFIG_1, 0x72)
+
+        # Modem config 2: SF9 (0x9), CRC on (bit 2)
+        self._write_reg(_REG_MODEM_CONFIG_2, 0x94)
+
+        # Modem config 3: AGC auto on, LowDataRateOptimize off (not needed for SF9/125k)
+        self._write_reg(_REG_MODEM_CONFIG_3, 0x04)
+
+        # Preamble length
+        self._write_reg(_REG_PREAMBLE_MSB, 0x00)
+        self._write_reg(_REG_PREAMBLE_LSB, PREAMBLE_LEN)
+
+        # Sync word (0x12 = public LoRaWAN, 0x34 = private)
+        self._write_reg(_REG_SYNC_WORD, 0x12)
+
+        # DIO mapping: DIO0 = TxDone (not connected but set anyway)
+        self._write_reg(_REG_DIO_MAPPING_1, 0x40)
+
+        # Clear IRQ flags
+        self._write_reg(_REG_IRQ_FLAGS, 0xFF)
+
+        # Go to standby
+        self._write_reg(_REG_OP_MODE, _MODE_STDBY)
+
+        freq_mhz = self._frequency / 1_000_000
+        print(f"LoRa: init OK (SPI{SPI_ID}, "
+              f"{freq_mhz:.1f} MHz, SF{SPREADING_FACTOR}, "
               f"{TX_POWER_DBM} dBm)")
         if self._logger:
-            self._logger.event("lora",
-                               f"Mock init OK - {self._frequency / 1_000_000:.1f} MHz "
-                               f"SF{SPREADING_FACTOR} {TX_POWER_DBM} dBm")
+            self._logger.event(
+                "lora",
+                f"Init OK - {freq_mhz:.1f} MHz "
+                f"SF{SPREADING_FACTOR} {TX_POWER_DBM} dBm"
+            )
 
     # ------------------------------------------------------------------
     # Public API
@@ -104,12 +233,8 @@ class LoRa:
         """
         Transmit raw bytes. Returns True on success, False on timeout.
 
-        Real implementation will:
-          1. Write payload to SX1278 FIFO
-          2. Set mode to TX (RegOpMode = 0x83)
-          3. Poll RegIrqFlags (0x12) for TxDone (bit 3) at 5ms intervals
-          4. Clear IRQ flags (write 0xFF to 0x12)
-          5. Return to sleep mode (RegOpMode = 0x80)
+        Writes payload to FIFO, triggers TX, polls RegIrqFlags for
+        TxDone (bit 3) at 5ms intervals with 2s timeout.
         """
         if not self._initialised:
             print("LoRa: send failed - not initialised")
@@ -124,18 +249,74 @@ class LoRa:
             print(f"LoRa: send failed - invalid length {payload_len}")
             return False
 
-        # Simulate TX airtime
-        airtime_ms = payload_len * _MOCK_AIRTIME_MS_PER_BYTE
-        time.sleep_ms(min(airtime_ms, 50))  # cap mock delay at 50ms
+        try:
+            # Go to standby for FIFO access
+            self._write_reg(_REG_OP_MODE, _MODE_STDBY)
 
-        self._tx_count += 1
-        self._last_payload = payload
+            # Set FIFO pointer to TX base
+            self._write_reg(_REG_FIFO_ADDR_PTR, 0x00)
 
-        if self._logger:
-            self._logger.event("lora",
-                               f"TX #{self._tx_count} ({payload_len} bytes)")
+            # Write payload to FIFO
+            self._write_fifo(payload)
 
-        return True
+            # Set payload length
+            self._write_reg(_REG_PAYLOAD_LENGTH, payload_len)
+
+            # Clear IRQ flags
+            self._write_reg(_REG_IRQ_FLAGS, 0xFF)
+
+            # Set mode to TX
+            self._write_reg(_REG_OP_MODE, _MODE_TX)
+
+            # Poll for TxDone
+            start = time.ticks_ms()
+            while True:
+                flags = self._read_reg(_REG_IRQ_FLAGS)
+                if flags & _IRQ_TX_DONE:
+                    break
+                elapsed = time.ticks_diff(time.ticks_ms(), start)
+                if elapsed >= TX_TIMEOUT_MS:
+                    # Timeout -- return to sleep
+                    self._write_reg(_REG_OP_MODE, _MODE_SLEEP)
+                    print(f"LoRa: TX timeout after {elapsed}ms")
+                    if self._logger:
+                        self._logger.event(
+                            "lora",
+                            f"TX timeout after {elapsed}ms",
+                            level="WARNING"
+                        )
+                    return False
+                time.sleep_ms(TX_POLL_MS)
+
+            # Clear IRQ flags
+            self._write_reg(_REG_IRQ_FLAGS, 0xFF)
+
+            # Return to sleep mode
+            self._write_reg(_REG_OP_MODE, _MODE_SLEEP)
+
+            self._tx_count += 1
+            self._last_payload = payload
+
+            if self._logger:
+                self._logger.event(
+                    "lora",
+                    f"TX #{self._tx_count} ({payload_len} bytes)"
+                )
+
+            return True
+
+        except Exception as e:
+            # Ensure safe state on any SPI error
+            try:
+                self._write_reg(_REG_OP_MODE, _MODE_SLEEP)
+            except Exception:
+                pass
+            print(f"LoRa: send error - {e}")
+            if self._logger:
+                self._logger.event(
+                    "lora", f"Send error: {e}", level="ERROR"
+                )
+            return False
 
     def send_telemetry(self, data):
         """
@@ -198,23 +379,17 @@ class LoRa:
         return False
 
     def reset(self):
-        """
-        Pulse the RST pin to reset the SX1278.
-
-        Real implementation will drive RST low for 10ms, then wait 10ms.
-        """
-        print("LoRa: mock reset")
+        """Pulse the RST pin low for 10ms to reset the SX1278."""
+        self._rst.low()
+        time.sleep_ms(10)
+        self._rst.high()
+        time.sleep_ms(10)
         if self._logger:
-            self._logger.event("lora", "Radio reset (mock)")
+            self._logger.event("lora", "Radio reset")
 
     # ------------------------------------------------------------------
     # Properties
     # ------------------------------------------------------------------
-
-    @property
-    def is_mock(self):
-        """True if running mock (no real hardware)."""
-        return self._mock
 
     @property
     def is_initialised(self):
@@ -232,16 +407,19 @@ class LoRa:
         return self._last_payload
 
 
-# --- Unit test ---
+# --- Unit test (hardware-in-the-loop) ---
 def test():
-    print("=== LoRa mock unit test ===")
+    print("=== LoRa unit test ===")
     all_passed = True
 
-    # --- Test 1: init defaults ---
+    # --- Test 1: init and version check ---
     lora = LoRa()
-    passed = lora.is_initialised and lora.is_mock
-    print(f"  {'PASS' if passed else 'FAIL'} - Init: initialised=True, mock=True")
+    passed = lora.is_initialised
+    print(f"  {'PASS' if passed else 'FAIL'} - Init: initialised={lora.is_initialised}")
     all_passed &= passed
+    if not lora.is_initialised:
+        print("  ABORT - Cannot continue without initialised radio")
+        return False
 
     # --- Test 2: tx_count starts at 0 ---
     passed = lora.tx_count == 0 and lora.last_payload is None
@@ -318,13 +496,23 @@ def test():
     print(f"  {'PASS' if passed else 'FAIL'} - Logger receives events with source='lora'")
     all_passed &= passed
 
-    # --- Test 12: reset does not crash ---
+    # --- Test 12: reset completes ---
     try:
         lora.reset()
         passed = True
     except Exception:
         passed = False
     print(f"  {'PASS' if passed else 'FAIL'} - reset() completes without error")
+    all_passed &= passed
+
+    # --- Test 13: radio works after reset + reinit ---
+    try:
+        lora3 = LoRa()
+        result = lora3.send(b"post-reset test")
+        passed = result is True and lora3.is_initialised
+    except Exception:
+        passed = False
+    print(f"  {'PASS' if passed else 'FAIL'} - New instance works after reset")
     all_passed &= passed
 
     print(f"\n{'All tests passed!' if all_passed else 'Some tests FAILED'}")

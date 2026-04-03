@@ -19,8 +19,8 @@ monitoring (INA219) is implemented and basic hardware test confirmed passing.
 SHT31 dual sensor module is implemented and tested on hardware (refactored to
 accept shared I2C bus). Heater SSR driver is implemented and tested. UART
 display driver is implemented and all tests pass. Moisture probe module is
-implemented with per-channel calibration offsets. Mock LoRa transmitter driver
-is complete (hardware on order). Drying schedule controller is complete with
+implemented with per-channel calibration offsets. Real LoRa transmitter driver
+is complete and verified (Pico->Pi4 link tested). Drying schedule controller is complete with
 FPL-based schedules for hard maple and beech, plus public advance() method for
 manual stage advancement via REST API.
 
@@ -45,7 +45,7 @@ via ntfy.sh. No ESP32 or MQTT broker in production system.
 | `lib/heater.py` | Complete | Yes -- all tests pass |
 | `lib/display.py` | Complete | Yes -- all tests pass |
 | `lib/moisture.py` | Complete | Yes -- all tests pass |
-| `lib/lora.py` | Mock complete | Yes -- mock tests pass on hardware |
+| `lib/lora.py` | Complete | Yes -- real SX1278 driver, TX verified Pico->Pi4 |
 | `lib/schedule.py` | Complete | Yes -- mock-based tests pass on hardware |
 | `main.py` | Complete | Pending hardware integration test |
 | `config.py` | Complete | Template -- change passwords before deploy |
@@ -292,27 +292,30 @@ Reads wood moisture content (MC%) from two resistive probe channels.
 
 ## lib/lora.py
 
-Mock LoRa transmitter driver for AI-Thinker Ra-02 (SX1278, 433 MHz).
+Real LoRa transmitter driver for AI-Thinker Ra-02 (SX1278, 433 MHz).
 
-- Mock implementation for development while Ra-02 modules are on order
+- Real SX1278 SPI driver -- replaced mock implementation after Ra-02 hardware arrived
 - SPI1 on GP10 (SCK), GP11 (MOSI), GP12 (MISO), GP13 (CS), RST on GP28
-- DIO0 not connected on Pico side -- TX completion uses register polling (no interrupt)
+- DIO0 not connected on Pico side -- TX completion uses register polling (RegIrqFlags 0x12 bit 3, 5ms poll interval, 2s timeout)
 - TX-only -- no receive path on the Pico side
-- `send(payload: bytes) -> bool` -- raw byte transmission (mock always returns True)
+- Init sequence: hardware reset, verify version register (0x12), configure frequency/BW/SF/CR/power, set FIFO base, clear IRQ flags
+- RF params: 433 MHz, BW 125 kHz, SF9, CR 4/5, 17 dBm PA_BOOST, 8-symbol preamble, public sync word (0x12)
+- `send(payload: bytes) -> bool` -- writes FIFO, triggers TX, polls TxDone, returns to sleep
 - `send_telemetry(data: dict) -> bool` -- JSON serialise and send; field names match Pi4 SQLite schema (ts, stage, temp_lumber, temp_intake, humidity_lumber, humidity_intake, mc_channel_1, mc_channel_2, exhaust_fan_rpm, exhaust_fan_pct, circ_fan_on, heater_on, vent_open)
 - `send_alert(code: str, message: str) -> bool` -- with 3x retry, 2s spacing
-- `reset()` -- radio reset stub
-- `is_mock` property returns True; `tx_count` and `last_payload` for inspection
+- `reset()` -- pulses RST low for 10ms
+- `tx_count` and `last_payload` properties for inspection
 - Accepts optional `logger=None`; source string "lora"; logs on init, send success, send timeout, and RST events
-- 12 unit tests included, all mock-based
+- Silent fail on SPI errors: returns to sleep mode, logs error, returns False
+- 13 unit tests included (hardware-in-the-loop); test 13 verifies radio works after reset + reinit
+- End-to-end TX verified: Pico -> Pi4 LoRa link confirmed working
 
 **Alert codes (from lora_telemetry_spec):** OVER_TEMP, SENSOR_FAIL, FAN_STALL,
 HEATER_TIMEOUT, SD_FAIL, LORA_TIMEOUT, STAGE_COMPLETE, SCHEDULE_DONE
 
-**Real driver (pending Ra-02 hardware):** Will replace mock. Same interface, same pin
-assignments. `is_mock` returns False. Implements SX1278 register configuration and
-TxDone polling (RegIrqFlags 0x12 bit 3, 5ms poll interval, 2s timeout). No DIO0
-interrupt -- TX completion confirmed by SPI register polling.
+**Test scripts:**
+- `lora_test_tx.py` -- Pico-side: sends numbered JSON messages every 5s via lib/lora.py
+- `lora_test_rx.py` -- Pi4-side: validates Ra-02 hardware (6 tests), then listens for packets with RSSI/SNR readout
 
 ---
 
@@ -396,7 +399,7 @@ Entry point wiring all `lib/` modules together. Runs at boot.
 Template configuration file with defaults. Must be edited before first deployment.
 
 - VERSION, AP_SSID, AP_PASSWORD, API_KEY
-- USE_MOCK_LORA, LORA_SF, LORA_FREQ_MHZ
+- LORA_SF, LORA_FREQ_MHZ
 - DEFAULT_SCHEDULE, DISPLAY_TIMEOUT_S, LOG_FLUSH_INTERVAL_S
 
 ---
@@ -417,7 +420,6 @@ function in sequence, then reports a summary of pass/fail results.
 
 In rough priority order:
 
-1. **Real `lib/lora.py`** -- replace mock when Ra-02 hardware arrives
-2. **`kiln_server/` Pi4 daemon** -- LoRa RX, SQLite storage, REST API, ntfy.sh alerts
-3. **Kivy Android app** -- mobile interface; queries Pi4 REST API for history/plots,
+1. **`kiln_server/` Pi4 daemon** -- LoRa RX, SQLite storage, REST API, ntfy.sh alerts
+2. **Kivy Android app** -- mobile interface; queries Pi4 REST API for history/plots,
    Pico AP REST API for live control
