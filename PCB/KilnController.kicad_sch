@@ -1585,6 +1585,214 @@
 			)
 			(embedded_fonts no)
 		)
+		(symbol "KilnSymbols:Ra02_LoRa"
+			(exclude_from_sim no)
+			(in_bom yes)
+			(on_board yes)
+			(property "Reference" "U"
+				(at 0 2.032 0)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(property "Value" "Ra-02_433MHz"
+				(at 0.254 0.254 0)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(property "Footprint" "KilnFootprintLibrary:LoRa_Module"
+				(at 0 0 0)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+					(hide yes)
+				)
+			)
+			(property "Datasheet" ""
+				(at 0 0 0)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+					(hide yes)
+				)
+			)
+			(property "Description" ""
+				(at 0 0 0)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+					(hide yes)
+				)
+			)
+			(symbol "Ra02_LoRa_0_1"
+				(rectangle
+					(start -5.08 -2.54)
+					(end 5.08 -12.7)
+					(stroke
+						(width 0)
+						(type default)
+					)
+					(fill
+						(type none)
+					)
+				)
+			)
+			(symbol "Ra02_LoRa_1_1"
+				(pin power_in line
+					(at -7.62 -3.81 0)
+					(length 2.54)
+					(name "GND"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "1"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+				(pin input line
+					(at -7.62 -6.35 0)
+					(length 2.54)
+					(name "RST"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "3"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+				(pin input line
+					(at -7.62 -8.89 0)
+					(length 2.54)
+					(name "SCK"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "5"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+				(pin output line
+					(at -7.62 -11.43 0)
+					(length 2.54)
+					(name "MISO"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "7"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+				(pin power_in line
+					(at 7.62 -3.81 180)
+					(length 2.54)
+					(name "3V3"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "2"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+				(pin input line
+					(at 7.62 -6.35 180)
+					(length 2.54)
+					(name "NSS"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "4"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+				(pin input line
+					(at 7.62 -8.89 180)
+					(length 2.54)
+					(name "MOSI"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "6"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+				(pin bidirectional line
+					(at 7.62 -11.43 180)
+					(length 2.54)
+					(name "DIO0"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "8"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+			)
+			(embedded_fonts no)
+		)
 		(symbol "KilnSymbols:Screw_Terminal_01x04"
 			(pin_names
 				(offset 1.016)
@@ -3227,7 +3435,7 @@
 		)
 		(uuid "4e6bb12b-cadd-4070-a26e-68f095b17946")
 	)
-	(text_box "ADDR: 0x44 (AD Pin pulled high)"
+	(text_box "ADDR: 0x45 (AD Pin pulled high)"
 		(exclude_from_sim no)
 		(at 149.86 59.69 0)
 		(size 13.97 7.62)
@@ -3376,6 +3584,12 @@
 		(uuid "9b25e1b6-7c7b-4762-84b1-a17821c26c5e")
 	)
 	(junction
+		(at 210.82 149.86)
+		(diameter 0)
+		(color 0 0 0 0)
+		(uuid "bc7e5898-1207-4dc6-bf45-979013763ec7")
+	)
+	(junction
 		(at 132.08 132.08)
 		(diameter 0)
 		(color 0 0 0 0)
@@ -3436,6 +3650,10 @@
 	(no_connect
 		(at 66.04 120.65)
 		(uuid "d4f392b2-01b0-46a3-8be1-6cce101f7214")
+	)
+	(no_connect
+		(at 201.93 157.48)
+		(uuid "d75986bb-c292-4c04-8741-26a5dfc28980")
 	)
 	(wire
 		(pts
@@ -3526,6 +3744,16 @@
 			(type default)
 		)
 		(uuid "287bc0f7-20d6-4b39-949f-a740751d5949")
+	)
+	(wire
+		(pts
+			(xy 201.93 149.86) (xy 210.82 149.86)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "457e6968-a6b6-436b-b8ae-24ee331485a7")
 	)
 	(wire
 		(pts
@@ -3636,6 +3864,16 @@
 			(type default)
 		)
 		(uuid "8179abe6-1ae8-465d-8feb-81ac05aa756e")
+	)
+	(wire
+		(pts
+			(xy 210.82 149.86) (xy 214.63 149.86)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "81ed2c3b-ac1c-4072-8f08-b2f627e073fc")
 	)
 	(wire
 		(pts
@@ -3957,6 +4195,16 @@
 		)
 		(uuid "2603644e-9973-4da0-8166-e88472e04e45")
 	)
+	(label "LORA_RX"
+		(at 186.69 157.48 180)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify right bottom)
+		)
+		(uuid "26a5f1d1-f315-4101-973d-ca99a0a2d6ce")
+	)
 	(label "PROBE_2_ADC"
 		(at 78.74 87.63 0)
 		(effects
@@ -4217,6 +4465,16 @@
 		)
 		(uuid "786ad845-6a1b-4a95-8317-574bd4ef7917")
 	)
+	(label "LORA_SCK"
+		(at 186.69 154.94 180)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify right bottom)
+		)
+		(uuid "7bc62b94-9ed3-4ad6-86f8-403788b546b0")
+	)
 	(label "FAN_CIR_PWM"
 		(at 250.19 83.82 0)
 		(effects
@@ -4387,6 +4645,16 @@
 		)
 		(uuid "9ca0085c-0ee2-4c5e-9ab9-702a977b177c")
 	)
+	(label "LORA_CS"
+		(at 201.93 152.4 0)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left bottom)
+		)
+		(uuid "9de21d77-edaa-447b-88e7-f7028f170705")
+	)
 	(label "DISPLAY_BUTTON"
 		(at 172.72 91.44 270)
 		(effects
@@ -4426,6 +4694,16 @@
 			(justify left bottom)
 		)
 		(uuid "b8d4cb27-7a23-482c-83d7-8dcc9d679bc8")
+	)
+	(label "LORA_TX"
+		(at 201.93 154.94 0)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left bottom)
+		)
+		(uuid "bb5b6151-aab2-4372-ae08-d59760dcad06")
 	)
 	(label "+5V"
 		(at 78.74 67.31 0)
@@ -4556,6 +4834,26 @@
 			(justify right bottom)
 		)
 		(uuid "e1f0fbe9-9c36-45da-abfa-32bfb3c6a077")
+	)
+	(label "LORA_RST"
+		(at 186.69 152.4 180)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify right bottom)
+		)
+		(uuid "e35af115-24e9-4507-9c13-640b016c1ec1")
+	)
+	(label "+3V3"
+		(at 214.63 149.86 0)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left bottom)
+		)
+		(uuid "efc5de9c-81f8-4b27-92fa-aeb565937981")
 	)
 	(label "+5V"
 		(at 172.72 35.56 270)
@@ -5252,6 +5550,71 @@
 		)
 	)
 	(symbol
+		(lib_id "power:GND")
+		(at 210.82 144.78 270)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(uuid "2dd0ac69-fcf7-43c2-84db-5c49f299b3f9")
+		(property "Reference" "#PWR030"
+			(at 204.47 144.78 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Value" "GND"
+			(at 205.74 144.78 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Footprint" ""
+			(at 210.82 144.78 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" ""
+			(at 210.82 144.78 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Description" "Power symbol creates a global label with name \"GND\" , ground"
+			(at 210.82 144.78 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(pin "1"
+			(uuid "1d35e3e0-1048-4959-8a0a-c3a35a86b773")
+		)
+		(instances
+			(project "KilnController"
+				(path "/c3036073-6461-4b90-ba15-ffed45812946"
+					(reference "#PWR030")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
 		(lib_id "KilnSymbols:Screw_Terminal_01x04")
 		(at 246.38 134.62 90)
 		(unit 1)
@@ -5862,6 +6225,72 @@
 		)
 	)
 	(symbol
+		(lib_id "power:PWR_FLAG")
+		(at 78.74 69.85 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(fields_autoplaced yes)
+		(uuid "3f49b1d0-710e-4ae0-87e0-e0914be08dd6")
+		(property "Reference" "#FLG03"
+			(at 78.74 67.945 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Value" "PWR_FLAG"
+			(at 78.74 64.77 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Footprint" ""
+			(at 78.74 69.85 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" "~"
+			(at 78.74 69.85 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Description" "Special symbol for telling ERC where power comes from"
+			(at 78.74 69.85 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(pin "1"
+			(uuid "bc6544e7-24bb-4742-a915-ae5eea7f0773")
+		)
+		(instances
+			(project "KilnController"
+				(path "/c3036073-6461-4b90-ba15-ffed45812946"
+					(reference "#FLG03")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
 		(lib_id "power:GND")
 		(at 91.44 38.1 0)
 		(unit 1)
@@ -6212,6 +6641,72 @@
 		)
 	)
 	(symbol
+		(lib_id "power:PWR_FLAG")
+		(at 78.74 80.01 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(fields_autoplaced yes)
+		(uuid "559a91c6-112c-4e09-8b09-ed71af38b66e")
+		(property "Reference" "#FLG02"
+			(at 78.74 78.105 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Value" "PWR_FLAG"
+			(at 78.74 74.93 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Footprint" ""
+			(at 78.74 80.01 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" "~"
+			(at 78.74 80.01 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Description" "Special symbol for telling ERC where power comes from"
+			(at 78.74 80.01 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(pin "1"
+			(uuid "48c13cbe-7bdb-4a8b-93e5-5d9d9b274e06")
+		)
+		(instances
+			(project "KilnController"
+				(path "/c3036073-6461-4b90-ba15-ffed45812946"
+					(reference "#FLG02")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
 		(lib_id "RasPi_Pico:Raspberry_Pi_Pico_2W")
 		(at 63.5 91.44 0)
 		(unit 1)
@@ -6397,6 +6892,73 @@
 			(project "KilnController"
 				(path "/c3036073-6461-4b90-ba15-ffed45812946"
 					(reference "U1")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
+		(lib_id "power:GND")
+		(at 186.69 149.86 270)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(fields_autoplaced yes)
+		(uuid "61573f69-f800-40d7-8a10-a6eebbd1db69")
+		(property "Reference" "#PWR029"
+			(at 180.34 149.86 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Value" "GND"
+			(at 182.88 149.8599 90)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify right)
+			)
+		)
+		(property "Footprint" ""
+			(at 186.69 149.86 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" ""
+			(at 186.69 149.86 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Description" "Power symbol creates a global label with name \"GND\" , ground"
+			(at 186.69 149.86 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(pin "1"
+			(uuid "db634ec6-ca71-48c3-850c-a6374de0c9e6")
+		)
+		(instances
+			(project "KilnController"
+				(path "/c3036073-6461-4b90-ba15-ffed45812946"
+					(reference "#PWR029")
 					(unit 1)
 				)
 			)
@@ -6807,6 +7369,75 @@
 			(project "KilnController"
 				(path "/c3036073-6461-4b90-ba15-ffed45812946"
 					(reference "J11")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
+		(lib_id "Device:C_Small_US")
+		(at 210.82 147.32 180)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(uuid "863199fe-1610-41ae-8ea0-95b92fb2e398")
+		(property "Reference" "C3"
+			(at 216.154 145.034 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+		)
+		(property "Value" "100nF"
+			(at 219.202 143.002 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+		)
+		(property "Footprint" "Capacitor_THT:C_Disc_D5.0mm_W2.5mm_P5.00mm"
+			(at 210.82 147.32 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" ""
+			(at 210.82 147.32 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Description" "capacitor, small US symbol"
+			(at 210.82 147.32 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(pin "2"
+			(uuid "8f2406e3-9de3-410f-ba77-294985cb03b1")
+		)
+		(pin "1"
+			(uuid "0d90fe3e-8e3b-4148-becd-f2ee18a3afb0")
+		)
+		(instances
+			(project "KilnController"
+				(path "/c3036073-6461-4b90-ba15-ffed45812946"
+					(reference "C3")
 					(unit 1)
 				)
 			)
@@ -8081,6 +8712,92 @@
 			(project "KilnController"
 				(path "/c3036073-6461-4b90-ba15-ffed45812946"
 					(reference "#PWR021")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
+		(lib_id "KilnSymbols:Ra02_LoRa")
+		(at 194.31 146.05 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(fields_autoplaced yes)
+		(uuid "d3de5668-b2ca-4f13-aec9-449b1d728bcf")
+		(property "Reference" "U4"
+			(at 194.31 143.51 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Value" "Ra-02_433MHz"
+			(at 194.31 146.05 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Footprint" "KilnFootprintLibrary:LoRa_Module"
+			(at 194.31 146.05 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" ""
+			(at 194.31 146.05 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Description" ""
+			(at 194.31 146.05 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(pin "7"
+			(uuid "81b88421-eb0c-42b6-910e-51183261dc91")
+		)
+		(pin "1"
+			(uuid "e6a21c4e-2a25-4c83-a48e-b7ebd9d4cf20")
+		)
+		(pin "6"
+			(uuid "f17a7a89-8aef-4485-8317-367e25a924b0")
+		)
+		(pin "2"
+			(uuid "426e0f5e-1a87-412b-8ee5-5b9084eb7285")
+		)
+		(pin "5"
+			(uuid "3410de36-d99e-432e-a3c1-73f44ea0571f")
+		)
+		(pin "4"
+			(uuid "b8c7f245-8f44-414e-abd9-9a3124f828a1")
+		)
+		(pin "3"
+			(uuid "328e111e-95dd-4d79-bbd2-34a0b4d47029")
+		)
+		(pin "8"
+			(uuid "95a53b69-6462-4229-a646-4fc2a01d7b62")
+		)
+		(instances
+			(project "KilnController"
+				(path "/c3036073-6461-4b90-ba15-ffed45812946"
+					(reference "U4")
 					(unit 1)
 				)
 			)
