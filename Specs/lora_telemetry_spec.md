@@ -1,4 +1,4 @@
-# LoRa Telemetry Module — Hardware & Firmware Spec
+# LoRa Telemetry Module -- Hardware & Firmware Spec
 **Kiln Controller Project**
 **Status:** Ra-02 modules on order (arriving ~2 weeks); Pi4 daemon not yet implemented
 **Scope:** Covers Pico-side LoRa transmitter and Pi4-side LoRa receiver + data server
@@ -18,6 +18,12 @@ Pico 2W --> SPI1 --> Ra-02 (433 MHz) ~~LoRa~~ Ra-02 --> SPI0 --> Pi4 daemon --> 
                                                                               --> REST API --> Kivy app
                                                                               --> ntfy.sh --> phone
 ```
+
+**Pico-side is transmit-only.** The Pico never listens for incoming LoRa packets. All
+parameter changes and commands to the kiln are handled via the Wi-Fi AP / REST API interface.
+DIO0 is not connected on the Pico side -- TX completion is confirmed by polling the SX1278
+IRQ flags register over SPI (see Firmware section). This frees GP20 for use as the display
+button input.
 
 No ESP32 or MQTT broker is required in the deployed system. The ESP32-WROOM-32 devboard
 (owned) is useful for bench testing the Pico LoRa transmitter before the Pi4 daemon is
@@ -50,6 +56,10 @@ The Ra-02 connects via SPI1 on the Pico using the default SPI1 pin block (GP10-G
 Moisture probe AC excitation channels were moved from GP12/GP13 to GP6/GP7 to free the
 full SPI1 block for LoRa -- this is already reflected in `lib/moisture.py` (GP6/GP7).
 
+DIO0 is **not connected** on the Pico side. TX completion is confirmed by polling the
+SX1278 IRQ flags register over SPI (see Firmware section). GP20 is therefore free for
+use as the display button input, which is its current assignment in `lib/display.py`.
+
 **Power:**
 
 | Ra-02 Pin | Pico Pin      | Notes               |
@@ -65,8 +75,21 @@ full SPI1 block for LoRa -- this is already reflected in `lib/moisture.py` (GP6/
 | MOSI      | GP11      | Pin 15       | SPI1 TX (default)               |
 | MISO      | GP12      | Pin 16       | SPI1 RX (default)               |
 | NSS (CS)  | GP13      | Pin 17       | SPI1 CS (default) -- active low |
-| DIO0      | GP20      | Pin 26       | Interrupt -- TX done            |
 | RST       | GP28      | Pin 34       | Reset -- active low             |
+| DIO0      | --        | not connected| Not needed (TX-only, polling)   |
+
+**GPIO map (Pico GPIO Map tab in BOM):**
+
+| GPIO | Function                      | Notes                                  |
+|------|-------------------------------|----------------------------------------|
+| GP6  | Digital OUT -- AC excite Ch1  | Moisture probe (moved from GP12)       |
+| GP7  | Digital OUT -- AC excite Ch2  | Moisture probe (moved from GP13)       |
+| GP10 | SPI1 SCK -- LoRa Ra-02        |                                        |
+| GP11 | SPI1 TX (MOSI) -- LoRa Ra-02  |                                        |
+| GP12 | SPI1 RX (MISO) -- LoRa Ra-02  |                                        |
+| GP13 | SPI1 CS -- LoRa Ra-02         | Active low                             |
+| GP20 | Digital IN -- Display button  | Freed from LoRa DIO0; see display spec |
+| GP28 | Digital OUT -- LoRa RST       |                                        |
 
 **Decoupling:** Place a 100 nF ceramic capacitor between Ra-02 VCC and GND as close to
 the module as possible. The Ra-02 RF switching causes supply transients.
@@ -78,6 +101,8 @@ the module as possible. The Ra-02 RF switching causes supply transients.
 The Ra-02 wires directly to the Pi4 GPIO header via SPI0. The Pi4 GPIO is 3.3V -- no
 level shifting required. SPI must be enabled on the Pi4 via:
 `sudo raspi-config` -> Interface Options -> SPI -> Enable
+
+DIO0 IS connected on the Pi4 side because the daemon uses interrupt-driven receive.
 
 **Power:**
 
@@ -114,22 +139,43 @@ pattern (class-based, pin numbers as constructor args, matching `exhaust.py` tem
 lora = LoRa(
     spi_id=1,
     sck=10, mosi=11, miso=12,
-    cs=13, irq=20, rst=28,
+    cs=13, rst=28,
     frequency=433_000_000
 )
 ```
+
+Note: no `irq` parameter -- DIO0 is not connected on the Pico side.
 
 **Class responsibilities:**
 - Initialise SPI1 using default pin block:
   `SPI(1, baudrate=1_000_000, sck=Pin(10), mosi=Pin(11), miso=Pin(12))`
 - Configure SX1278 registers via SPI (frequency, bandwidth, spreading factor, coding rate)
-- `send(payload: bytes) -> bool` -- blocking TX, polls TxDone flag (reg 0x12 bit 3), 2s timeout
+- `send(payload: bytes) -> bool` -- blocking TX with polling-based completion (see below)
 - `send_telemetry(data: dict) -> bool` -- serialises dict to JSON, calls `send()`
 - `send_alert(code: str, message: str) -> bool` -- 3x retry with 2s spacing
 - `reset()` -- pulses RST pin low for 10ms
 - `is_mock` property returns False (distinguishes from mock implementation)
 - TX-only -- no receive path on Pico side
-- Accepts optional `logger=None`; source string `"lora"`
+- Accepts optional `logger=None`; source string `"lora"`; logs on init, send success,
+  send timeout, and RST events
+
+**TX completion -- register polling (no DIO0 needed):**
+
+Because DIO0 is not connected, TX completion is determined by polling the SX1278 IRQ flags
+register (RegIrqFlags, address 0x12) over SPI. The TxDone flag is bit 3 (mask 0x08).
+
+Procedure in `send()`:
+1. Write payload to FIFO, set mode to TX (RegOpMode = 0x83)
+2. Poll RegIrqFlags in a loop at 5 ms intervals until bit 3 (TxDone) is set, or 2000 ms
+   timeout is reached
+3. Clear all IRQ flags by writing 0xFF to RegIrqFlags
+4. Return device to sleep mode (RegOpMode = 0x80)
+5. Return True on TxDone, False on timeout (caller logs `LORA_TIMEOUT` alert)
+
+For SF9 / 125 kHz / 4:5 coding rate, airtime for a 100-byte payload is approximately
+330 ms. The 2000 ms timeout gives comfortable headroom across all expected payload sizes.
+This approach is functionally equivalent to interrupt-driven TX confirmation for a
+transmit-only module on a 30-second heartbeat schedule.
 
 **Suggested LoRa RF parameters:**
 
@@ -160,8 +206,8 @@ data to SQLite, serves a REST API to the Kivy app, and pushes alerts via ntfy.sh
 **Python dependencies:**
 - `spidev` -- SPI bus access on Pi4
 - `RPi.GPIO` -- GPIO interrupt handling for DIO0
-- `pysx127x` or equivalent SX1276/78 driver (or port register sequences from Pico driver
-  directly -- keeps both sides symmetric and eliminates a third-party dependency)
+- `pysx127x` or equivalent SX1276/78 driver (or port register sequences from the Pico
+  driver directly -- keeps both sides symmetric and eliminates a third-party dependency)
 - `flask` or `fastapi` -- REST API
 - `requests` -- ntfy.sh HTTP POST
 - `sqlite3` -- stdlib, no install required
@@ -223,8 +269,8 @@ CREATE TABLE IF NOT EXISTS telemetry (
     temp_intake     REAL,
     humidity_lumber REAL,
     humidity_intake REAL,
-    mc_maple        REAL,
-    mc_beech        REAL,
+    mc_channel_1    REAL,
+    mc_channel_2    REAL,
     exhaust_fan_rpm INTEGER,
     exhaust_fan_pct INTEGER,
     circ_fan_on     INTEGER,            -- 0/1
@@ -266,19 +312,19 @@ Base URL: `http://<pi4-ip>:8080`
 
 All responses are JSON.
 
-| Method | Path       | Description                                                            |
-|--------|------------|------------------------------------------------------------------------|
-| GET    | `/status`  | Latest telemetry record                                                |
+| Method | Path       | Description                                                             |
+|--------|------------|-------------------------------------------------------------------------|
+| GET    | `/status`  | Latest telemetry record                                                 |
 | GET    | `/history` | Time-series data; params: `start`, `end` (Unix ts), `fields` (CSV list)|
-| GET    | `/alerts`  | Recent alerts; param: `limit` (default 50)                            |
-| GET    | `/runs`    | List of drying runs with start/end times                               |
-| GET    | `/health`  | Daemon uptime, last packet received timestamp, total packet count      |
+| GET    | `/alerts`  | Recent alerts; param: `limit` (default 50)                             |
+| GET    | `/runs`    | List of drying runs with start/end times                                |
+| GET    | `/health`  | Daemon uptime, last packet received timestamp, total packet count       |
 
 **Example `/history` response (columnar format for Kivy plotting):**
 
 ```json
 {
-  "fields": ["ts", "temp_lumber", "humidity_lumber", "mc_maple"],
+  "fields": ["ts", "temp_lumber", "humidity_lumber", "mc_channel_1"],
   "rows": [
     [1700000000, 52.3, 61.2, 18.4],
     [1700000030, 52.5, 60.9, 18.3]
@@ -288,6 +334,24 @@ All responses are JSON.
 
 The columnar format minimises payload size for long runs -- more efficient than an array
 of objects when plotting hundreds or thousands of data points.
+
+---
+
+## Alert Codes
+
+Alerts are generated on the Pico and transmitted as LoRa packets. The Pi4 daemon writes
+them to the `alerts` table and triggers ntfy.sh notifications.
+
+| Code             | Source | Condition                                              |
+|------------------|--------|--------------------------------------------------------|
+| `OVER_TEMP`      | Pico   | Either SHT31 zone exceeds stage limit                  |
+| `SENSOR_FAIL`    | Pico   | SHT31 read error or timeout                            |
+| `FAN_STALL`      | Pico   | Exhaust fan tach reads 0 RPM when commanded on         |
+| `HEATER_TIMEOUT` | Pico   | SSR on continuously beyond safety threshold            |
+| `SD_FAIL`        | Pico   | SD card write error                                    |
+| `LORA_TIMEOUT`   | Pico   | TxDone flag not seen within 2000 ms polling window     |
+| `STAGE_COMPLETE` | Pico   | Drying schedule stage transition (informational)       |
+| `SCHEDULE_DONE`  | Pico   | Full drying schedule completed                         |
 
 ---
 
@@ -350,12 +414,14 @@ Only `config.py` changes between environments.
 2. Enable SPI: `sudo raspi-config` -> Interface Options -> SPI -> Enable; reboot
 3. Install dependencies: `pip install spidev RPi.GPIO flask requests`
 4. Start daemon: `python -m kiln_server`
-5. Wire Pico to Ra-02 per Pico wiring table; flash real `lib/lora.py` (once written)
+5. Wire Pico to Ra-02 per Pico wiring table (DIO0 unconnected); flash real `lib/lora.py`
 6. Run `lora_test.py` on Pico -- transmit a packet every 5s
-7. Confirm rows in SQLite: `sqlite3 kiln_data.db "SELECT * FROM telemetry LIMIT 5;"`
-8. Confirm REST API: `curl http://localhost:8080/status`
-9. Trigger a test alert from Pico; confirm ntfy.sh notification on phone
-10. Short-range RSSI will be very strong (-40 to -60 dBm) -- that is expected
+7. Verify TxDone flag is seen via register polling within expected airtime (~330 ms for 100 bytes at SF9)
+8. Confirm rows in SQLite: `sqlite3 kiln_data.db "SELECT * FROM telemetry LIMIT 5;"`
+9. Confirm REST API: `curl http://localhost:8080/status`
+10. Trigger a test alert from Pico; confirm ntfy.sh notification on phone
+11. Force a `LORA_TIMEOUT` by asserting CS high during TX; verify alert code fires correctly
+12. Short-range RSSI will be very strong (-40 to -60 dBm) -- that is expected
 
 **Pre-deployment check at cottage:**
 1. Deploy cottage Pi4 with identical setup; update `config.py` for cottage network
@@ -385,7 +451,8 @@ system.
 ## Open Items
 
 - [x] Ra-02 modules ordered (arriving ~2 weeks)
-- [x] GPIO pin assignments finalised: GP10-13 SPI1, GP20 IRQ, GP28 RST
+- [x] GPIO pin assignments finalised: GP10-13 SPI1, GP28 RST; DIO0 not connected on Pico
+- [x] GP20 confirmed as display button (freed from LoRa DIO0)
 - [x] Moisture probe AC excitation confirmed on GP6/GP7 in `lib/moisture.py`
 - [x] Architecture decision: Ra-02 wired directly to Pi4; no ESP32 in production
 - [ ] Implement real `lib/lora.py` on Pico to replace mock (after Ra-02 arrives)

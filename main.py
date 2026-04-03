@@ -154,7 +154,7 @@ def start_wifi():
     ap.config(
         ssid=config.AP_SSID,
         password=config.AP_PASSWORD,
-        security=network.WPA2 if config.AP_PASSWORD else 0,
+        security=4 if config.AP_PASSWORD else 0,  # 4 = WPA2-PSK
     )
     ap.active(True)
     for _ in range(50):
@@ -1625,9 +1625,35 @@ async def control_loop():
         try:
             schedule.tick()
             _update_status_cache()
+            # Send telemetry via LoRa every tick when a run is active
+            if schedule._running:
+                _send_lora_telemetry()
         except Exception as e:
             logger.event("main", f"Control loop error: {e}", level="ERROR")
         await asyncio.sleep(schedule.tick_interval_s)
+
+
+def _send_lora_telemetry():
+    """Build and send a LoRa telemetry packet matching the Pi4 SQLite schema."""
+    s = _status_cache
+    try:
+        lora.send_telemetry({
+            "ts": s.get("ts", 0),
+            "stage": s.get("stage_name", ""),
+            "temp_lumber": s.get("temp_lumber"),
+            "temp_intake": s.get("temp_intake"),
+            "humidity_lumber": s.get("rh_lumber"),
+            "humidity_intake": s.get("rh_intake"),
+            "mc_channel_1": s.get("mc_channel_1"),
+            "mc_channel_2": s.get("mc_channel_2"),
+            "exhaust_fan_rpm": s.get("exhaust_fan_rpm"),
+            "exhaust_fan_pct": s.get("exhaust_fan_pct", 0),
+            "circ_fan_on": 1 if s.get("circ_fan_on") else 0,
+            "heater_on": 1 if s.get("heater_on") else 0,
+            "vent_open": 1 if s.get("vent_open") else 0,
+        })
+    except Exception as e:
+        print(f"[main] LoRa telemetry error: {e}")
 
 
 async def display_loop():

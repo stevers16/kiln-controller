@@ -110,8 +110,8 @@ mpremote cp sdcard_driver.py :sdcard_driver.py
 mpremote cp lib/sdcard.py :lib/sdcard.py
 ```
 
-**Deployment script:** `update_lib.py` at repo root copies all files from `lib/`
-to `/lib/` on the Pico in one step: `python update_lib.py`
+**Deployment script:** `update_lib.py` at repo root copies `main.py`, `config.py`,
+and all files from `lib/` to the Pico in one step: `python update_lib.py`
 
 ---
 
@@ -296,19 +296,23 @@ Mock LoRa transmitter driver for AI-Thinker Ra-02 (SX1278, 433 MHz).
 
 - Mock implementation for development while Ra-02 modules are on order
 - SPI1 on GP10 (SCK), GP11 (MOSI), GP12 (MISO), GP13 (CS), RST on GP28
-- DIO0 interrupt on GP20 (wired but not used in TX-only mock)
+- DIO0 not connected on Pico side -- TX completion uses register polling (no interrupt)
 - TX-only -- no receive path on the Pico side
 - `send(payload: bytes) -> bool` -- raw byte transmission (mock always returns True)
-- `send_telemetry(data: dict) -> bool` -- JSON serialise and send
+- `send_telemetry(data: dict) -> bool` -- JSON serialise and send; field names match Pi4 SQLite schema (ts, stage, temp_lumber, temp_intake, humidity_lumber, humidity_intake, mc_channel_1, mc_channel_2, exhaust_fan_rpm, exhaust_fan_pct, circ_fan_on, heater_on, vent_open)
 - `send_alert(code: str, message: str) -> bool` -- with 3x retry, 2s spacing
 - `reset()` -- radio reset stub
 - `is_mock` property returns True; `tx_count` and `last_payload` for inspection
-- Accepts optional `logger=None`; source string "lora"
+- Accepts optional `logger=None`; source string "lora"; logs on init, send success, send timeout, and RST events
 - 12 unit tests included, all mock-based
+
+**Alert codes (from lora_telemetry_spec):** OVER_TEMP, SENSOR_FAIL, FAN_STALL,
+HEATER_TIMEOUT, SD_FAIL, LORA_TIMEOUT, STAGE_COMPLETE, SCHEDULE_DONE
 
 **Real driver (pending Ra-02 hardware):** Will replace mock. Same interface, same pin
 assignments. `is_mock` returns False. Implements SX1278 register configuration and
-TxDone polling (reg 0x12 bit 3, 5ms poll interval, 2s timeout).
+TxDone polling (RegIrqFlags 0x12 bit 3, 5ms poll interval, 2s timeout). No DIO0
+interrupt -- TX completion confirmed by SPI register polling.
 
 ---
 
@@ -320,6 +324,7 @@ Drying schedule controller -- top-level control logic for multi-stage kiln dryin
 - Loads schedule JSON from SD card via `load(schedule_path)` -- validates all stages
 - `start()` begins from stage 0; `stop(reason)` halts with safe shutdown
 - `tick()` called from main loop -- reads sensors, controls heater/vents, checks advance
+- `advance()` public method for manual stage advancement via REST API `/run/advance`; reads last sensor data and delegates to `_advance_stage()`; raises RuntimeError if no run active or on last stage
 - `status()` returns full state dict for REST API and display
 - `tick_interval_s` property: 30s while venting, 120s otherwise
 - Temperature control: deadband heater with fault detection (20 min no-rise alert)
@@ -376,14 +381,15 @@ Entry point wiring all `lib/` modules together. Runs at boot.
 - Instantiates all 12 hardware modules in safe order with shared I2C bus
 - Starts WiFi AP (SSID/password from config.py)
 - Runs asyncio HTTP server on port 80 with 24 REST API endpoints
-- Control loop: `schedule.tick()` + status cache update at `tick_interval_s`
+- Control loop: `schedule.tick()` + status cache update at `tick_interval_s`; sends full LoRa telemetry packet every tick when a run is active (field names match Pi4 SQLite schema)
 - Display loop: `display.tick()` every 100ms with 4 registered pages (status, sensors, moisture, system)
-- LoRa heartbeat: sends telemetry every 5 min when no run is active
+- LoRa heartbeat: sends keepalive telemetry every 5 min when no run is active
 - RPM reader: caches exhaust fan RPM every 10s (avoids blocking 2s tach read in status path)
 - System test suite: 18 tests (unit, integration, commissioning) run as async task via POST /test/run
 - Calibration loading from SD card `calibration.json` at boot
 - Fatal exception handler: safe shutdown (heater off, vents open, fans off) then reboot after 5s
 - Authentication via `X-Kiln-Key` header on all endpoints except /health and /version
+- WiFi AP security uses integer constant 4 (WPA2-PSK); `network.WPA2` not available on Pico 2 W
 
 ## config.py
 
@@ -392,6 +398,18 @@ Template configuration file with defaults. Must be edited before first deploymen
 - VERSION, AP_SSID, AP_PASSWORD, API_KEY
 - USE_MOCK_LORA, LORA_SF, LORA_FREQ_MHZ
 - DEFAULT_SCHEDULE, DISPLAY_TIMEOUT_S, LOG_FLUSH_INTERVAL_S
+
+---
+
+## test_modules.py
+
+Standalone module test runner. Imports each `lib/` module and calls its `test()`
+function in sequence, then reports a summary of pass/fail results.
+
+- Usage: `mpremote run test_modules.py`
+- Does not start WiFi, HTTP server, or control loop
+- Tests all 12 modules: sdcard, SHT31sensors, current, circulation, exhaust, vents, heater, moisture, display, lora, logger, schedule
+- Exits with code 0 if all pass, 1 if any fail
 
 ---
 

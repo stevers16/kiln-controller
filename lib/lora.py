@@ -141,10 +141,10 @@ class LoRa:
         """
         Serialise dict to JSON and transmit. Returns True/False.
 
-        Expected keys (from spec):
+        Expected keys (matching Pi4 SQLite telemetry schema):
             ts, stage, temp_lumber, temp_intake, humidity_lumber,
-            humidity_intake, exhaust_fan_rpm, exhaust_fan_pct,
-            circ_fan_on, heater_on, vent_open
+            humidity_intake, mc_channel_1, mc_channel_2, exhaust_fan_rpm,
+            exhaust_fan_pct, circ_fan_on, heater_on, vent_open
         """
         try:
             payload = json.dumps(data).encode()
