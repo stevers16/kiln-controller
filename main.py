@@ -4,6 +4,15 @@
 # asyncio HTTP REST API server, and executes the drying control loop.
 # Runs at boot on the Raspberry Pi Pico 2 W.
 
+# --- Kill switch check (set by boot.py) ---
+# If boot.py was interrupted with Ctrl-C, or /no_main exists, bail out
+# immediately and drop to the REPL without touching any hardware.
+import builtins
+if getattr(builtins, "_kiln_skip_main", False):
+    print("main.py: skip flag set by boot.py -- not starting controller.")
+    import sys
+    sys.exit(0)
+
 import machine
 import network
 import time
@@ -74,57 +83,134 @@ HTTP_STATUS = {
 # Hardware initialisation
 # -----------------------------------------------------------------------
 
+def _try_init(label, fn):
+    """Run a hardware init step, logging any failure but not raising.
+
+    Returns the result of fn() on success, or None on failure.
+    Critical for boot resilience -- a single failed peripheral must not
+    crash the whole controller into a boot loop.
+
+    Prints a "starting" line before and a "done" / "FAILED" line after,
+    so a hang can be diagnosed by reading the last printed line over USB.
+    """
+    print(f"[init] {label} ...", end="")
+    # Force the print to flush immediately so it is visible even if the
+    # next call hangs and never returns.
+    try:
+        import sys
+        sys.stdout.flush()
+    except Exception:
+        pass
+    t0 = time.ticks_ms()
+    try:
+        result = fn()
+        elapsed = time.ticks_diff(time.ticks_ms(), t0)
+        print(f" OK ({elapsed}ms)")
+        return result
+    except Exception as e:
+        elapsed = time.ticks_diff(time.ticks_ms(), t0)
+        print(f" FAILED after {elapsed}ms: {e}")
+        if logger is not None:
+            try:
+                logger.event("main", f"{label} init failed: {e}", level="ERROR")
+            except Exception:
+                pass
+        return None
+
+
 def init_hardware():
     global sdcard, logger, i2c0, sensors, monitor_12v, monitor_5v
     global circulation, exhaust, vents, heater, moisture
     global display, lora, schedule
 
     # 1. SD card first -- logger depends on it
-    sdcard = SDCard()
+    sdcard = _try_init("SDCard", lambda: SDCard())
 
-    # 2. Logger
-    logger = Logger(sdcard)
+    # 2. Logger (must succeed -- needed by everything else for log events)
+    if sdcard is not None:
+        _logger = Logger(sdcard)
+        logger = _logger
+        # Open the persistent system log so boot events get persisted
+        _try_init("system log", lambda: _logger.open_system_log())
 
     # 3. Shared I2C bus
-    i2c0 = machine.I2C(0, sda=machine.Pin(0), scl=machine.Pin(1), freq=100_000)
+    i2c0 = _try_init(
+        "I2C0",
+        lambda: machine.I2C(0, sda=machine.Pin(0), scl=machine.Pin(1), freq=100_000),
+    )
 
     # 4. Sensors
-    sensors = SHT31Sensors(i2c=i2c0, logger=logger)
+    if i2c0 is not None:
+        sensors = _try_init(
+            "SHT31Sensors", lambda: SHT31Sensors(i2c=i2c0, logger=logger)
+        )
 
     # 5. Current monitors
-    monitor_12v = CurrentMonitor(i2c0, 0x40, "12V", logger=logger)
-    monitor_5v = CurrentMonitor(i2c0, 0x41, "5V", logger=logger)
+    if i2c0 is not None:
+        monitor_12v = _try_init(
+            "CurrentMonitor 12V",
+            lambda: CurrentMonitor(i2c0, 0x40, "12V", logger=logger),
+        )
+        monitor_5v = _try_init(
+            "CurrentMonitor 5V",
+            lambda: CurrentMonitor(i2c0, 0x41, "5V", logger=logger),
+        )
 
     # 6. Circulation fans
-    circulation = CirculationFans(
-        current_monitor=monitor_12v, logger=logger
+    circulation = _try_init(
+        "CirculationFans",
+        lambda: CirculationFans(current_monitor=monitor_12v, logger=logger),
     )
 
     # 7. Exhaust fan
-    exhaust = ExhaustFan(logger=logger)
+    exhaust = _try_init("ExhaustFan", lambda: ExhaustFan(logger=logger))
 
     # 8. Vents
-    vents = Vents(current_monitor=monitor_5v, logger=logger)
+    vents = _try_init(
+        "Vents", lambda: Vents(current_monitor=monitor_5v, logger=logger)
+    )
 
     # 9. Heater
-    heater = Heater(logger=logger)
+    heater = _try_init("Heater", lambda: Heater(logger=logger))
 
     # 10. Moisture probes + calibration
-    moisture = MoistureProbe(logger=logger)
-    _load_calibration(moisture, sdcard)
+    moisture = _try_init("MoistureProbe", lambda: MoistureProbe(logger=logger))
+    if moisture is not None and sdcard is not None:
+        _load_calibration(moisture, sdcard)
 
     # 11. Display
-    display = Display(timeout_s=config.DISPLAY_TIMEOUT_S)
+    display = _try_init(
+        "Display", lambda: Display(timeout_s=config.DISPLAY_TIMEOUT_S)
+    )
 
     # 12. LoRa
-    lora = LoRa(logger=logger)
+    lora = _try_init("LoRa", lambda: LoRa(logger=logger))
 
-    # 13. Schedule controller
-    schedule = KilnSchedule(
-        sdcard=sdcard, sensors=sensors, moisture=moisture,
-        heater=heater, exhaust=exhaust, circulation=circulation,
-        vents=vents, lora=lora, logger=logger,
-    )
+    # 13. Schedule controller (requires all critical hardware -- skip if missing)
+    required = (sdcard, sensors, moisture, heater, exhaust,
+                circulation, vents, lora)
+    if all(x is not None for x in required):
+        schedule = _try_init(
+            "KilnSchedule",
+            lambda: KilnSchedule(
+                sdcard=sdcard, sensors=sensors, moisture=moisture,
+                heater=heater, exhaust=exhaust, circulation=circulation,
+                vents=vents, lora=lora, logger=logger,
+            ),
+        )
+    else:
+        missing = [
+            n for n, x in zip(
+                ("sdcard", "sensors", "moisture", "heater", "exhaust",
+                 "circulation", "vents", "lora"),
+                required,
+            )
+            if x is None
+        ]
+        print(f"[init] KilnSchedule SKIPPED -- missing: {missing}")
+        if logger is not None:
+            logger.event("main", f"KilnSchedule skipped, missing: {missing}",
+                         level="ERROR")
 
 
 # -----------------------------------------------------------------------
@@ -150,19 +236,36 @@ def _load_calibration(moisture_probe, sd):
 # -----------------------------------------------------------------------
 
 def start_wifi():
+    # cyw43 driver on Pico W / Pico 2 W:
+    #   - parameter is `essid`, not `ssid`
+    #   - do NOT pass `security` -- the driver auto-selects WPA2-PSK
+    #     when a password is given, OPEN when no password is given
+    #   - WPA2 password must be 8-63 ASCII characters
+    #   - config must be set BEFORE active(True)
+    #   - the AP can only be started/stopped once per reboot
+    pw = config.AP_PASSWORD
+    if pw and len(pw) < 8:
+        print(f"[main] WARNING: AP_PASSWORD is {len(pw)} chars; "
+              f"WPA2 requires 8-63. AP will fall back to open.")
+
     ap = network.WLAN(network.AP_IF)
-    ap.config(
-        ssid=config.AP_SSID,
-        password=config.AP_PASSWORD,
-        security=4 if config.AP_PASSWORD else 0,  # 4 = WPA2-PSK
-    )
+    if pw and len(pw) >= 8:
+        ap.config(essid=config.AP_SSID, password=pw)
+        sec = "WPA2"
+    else:
+        ap.config(essid=config.AP_SSID)
+        sec = "open"
     ap.active(True)
+
     for _ in range(50):
         if ap.active():
             break
         time.sleep_ms(100)
+
     ip = ap.ifconfig()[0]
-    logger.event("main", f"WiFi AP active -- SSID={config.AP_SSID} IP={ip}")
+    logger.event(
+        "main", f"WiFi AP active -- SSID={config.AP_SSID} IP={ip} ({sec})"
+    )
     return ap
 
 
@@ -1730,12 +1833,34 @@ async def main():
 # Boot with exception handling
 # -----------------------------------------------------------------------
 
+def _record_boot_error(exc):
+    """Persist a traceback to /boot_error.log for post-mortem reading."""
+    import sys
+    try:
+        with open("/boot_error.log", "w") as f:
+            f.write(f"FATAL at uptime {_uptime_s()}s: {exc}\n")
+            _print_exc = getattr(sys, "print_exception", None)
+            if _print_exc:
+                _print_exc(exc, f)
+    except Exception:
+        pass
+
+
 try:
     asyncio.run(main())
 except KeyboardInterrupt:
     print("Interrupted by user")
 except Exception as e:
+    import sys
+    print("=" * 50)
     print(f"FATAL: {e}")
+    print("-" * 50)
+    # MicroPython-specific traceback printer
+    _print_exc = getattr(sys, "print_exception", None)
+    if _print_exc:
+        _print_exc(e)
+    print("=" * 50)
+    _record_boot_error(e)
     # Safe shutdown
     try:
         heater.off()
@@ -1757,5 +1882,6 @@ except Exception as e:
         logger.event("main", f"Fatal exception: {e}", level="ERROR")
     except Exception:
         pass
-    time.sleep(5)
-    machine.reset()
+    # Do NOT auto-reboot -- the boot loop hides the error.
+    # Drop to REPL so the user can read the traceback and diagnose.
+    print("Dropping to REPL. Power-cycle the Pico to retry.")

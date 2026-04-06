@@ -1,11 +1,16 @@
 # lib/logger.py
 #
 # Logging service for the kiln firmware.
-# Owns one SDCard instance. Provides event logging (text) and data
-# logging (CSV) for a drying run.
+# Owns one SDCard instance. Provides three log streams:
+#   - system log (system.log): persistent, always-on, appended across boots.
+#     Captures boot events, init failures, HTTP API events, and any
+#     event() calls made outside an active drying run.
+#   - per-run event log (event_*.txt): created at run start, closed at
+#     run end. Captures events during a single drying run.
+#   - per-run data log (data_*.csv): CSV telemetry rows during a run.
 #
-# Both log files live on the SD card. Silent fail with REPL warning
-# if SD is unavailable - the kiln must keep running regardless.
+# All logs live on the SD card. Silent fail with REPL warning if SD
+# is unavailable - the kiln must keep running regardless.
 
 import time
 
@@ -16,15 +21,21 @@ DATA_COLUMNS = [
     "vent_intake", "vent_exhaust", "heater_on", "stage",
 ]
 
+# Persistent system log filename (lives at SD root, appended across boots)
+SYSTEM_LOG_NAME = "system.log"
+# Cap system log size; rotate to system.old.log when exceeded
+SYSTEM_LOG_MAX_BYTES = 256 * 1024  # 256 KB
+
 
 class Logger:
     """
     Single logging service for the entire kiln firmware.
-    Provides event logging (text) and data logging (CSV) per drying run.
+    Provides a persistent system log plus per-run event and data logs.
     """
 
     def __init__(self, sd):
         self._sd = sd
+        self._system_file = None
         self._event_file = None
         self._data_file = None
         self._run_active = False
@@ -57,6 +68,50 @@ class Logger:
     # Public API
     # ------------------------------------------------------------------
 
+    def open_system_log(self):
+        """
+        Mount the SD card and open the persistent system log in append
+        mode. Should be called once at boot, before any other event()
+        calls that need to be persisted.
+
+        If the system log exceeds SYSTEM_LOG_MAX_BYTES, it is rotated to
+        system.old.log (single rotation, oldest is discarded).
+
+        Returns True on success, False if SD is unavailable.
+        """
+        if not self._sd.mount():
+            print("[logger] WARNING: SD mount failed - system log disabled")
+            return False
+
+        base = self._sd.mount_point
+        path = f"{base}/{SYSTEM_LOG_NAME}"
+
+        # Rotate if oversized
+        try:
+            import uos
+            stat = uos.stat(path)
+            if stat[6] > SYSTEM_LOG_MAX_BYTES:
+                old_path = f"{base}/system.old.log"
+                try:
+                    uos.remove(old_path)
+                except OSError:
+                    pass
+                uos.rename(path, old_path)
+        except OSError:
+            # File does not exist yet -- no rotation needed
+            pass
+        except Exception as e:
+            print(f"[logger] WARNING: system log rotation failed - {e}")
+
+        try:
+            self._system_file = open(path, "a")
+            self.event("logger", f"System log opened ({SYSTEM_LOG_NAME})")
+            return True
+        except Exception as e:
+            print(f"[logger] WARNING: Failed to open system log - {e}")
+            self._system_file = None
+            return False
+
     def begin_run(self):
         """
         Create event and data log files on the SD card.
@@ -82,20 +137,24 @@ class Logger:
             return True
         except Exception as e:
             print(f"[logger] WARNING: Failed to create log files - {e}")
-            self._close_files()
+            self._close_run_files()
             return False
 
     def end_run(self):
-        """Flush and close both log files, unmount SD."""
+        """
+        Flush and close per-run log files. Does NOT close the system log
+        or unmount the SD card -- the system log stays open across runs
+        so subsequent boot/operational events keep getting persisted.
+        """
         if self._run_active:
             self.event("logger", "Run ended")
-        self._close_files()
-        self._sd.unmount()
+        self._close_run_files()
         self._run_active = False
 
     def event(self, source, message, level="INFO"):
         """
-        Append a timestamped event line to the event log and REPL.
+        Append a timestamped event line to the REPL, the system log,
+        and the per-run event log (if a run is active).
 
         Format: 2026-03-17 14:30:05 [INFO ] [exhaust    ] Fan on at 75%
         """
@@ -107,7 +166,15 @@ class Logger:
         # Always print to REPL
         print(line)
 
-        # Write to SD if available
+        # Always write to the persistent system log if open
+        if self._system_file:
+            try:
+                self._system_file.write(line + "\n")
+                self._system_file.flush()
+            except Exception as e:
+                print(f"[logger] WARNING: system log write failed - {e}")
+
+        # Also write to the per-run event log if a run is active
         if self._event_file:
             try:
                 self._event_file.write(line + "\n")
@@ -151,8 +218,8 @@ class Logger:
     # Internal
     # ------------------------------------------------------------------
 
-    def _close_files(self):
-        """Safely close both file handles."""
+    def _close_run_files(self):
+        """Safely close per-run event and data file handles."""
         for f in (self._event_file, self._data_file):
             if f:
                 try:
@@ -162,6 +229,16 @@ class Logger:
                     pass
         self._event_file = None
         self._data_file = None
+
+    def close_system_log(self):
+        """Flush and close the persistent system log. Call at shutdown."""
+        if self._system_file:
+            try:
+                self._system_file.flush()
+                self._system_file.close()
+            except Exception:
+                pass
+            self._system_file = None
 
 
 # --- Unit test ---

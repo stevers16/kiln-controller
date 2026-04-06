@@ -18,7 +18,8 @@ from pathlib import Path
 
 ROOT_DIR = Path(__file__).parent
 LIB_DIR = ROOT_DIR / "lib"
-ROOT_FILES = ["main.py", "config.py"]
+# ROOT_FILES = ["config.py"]
+ROOT_FILES = ["boot.py", "main.py", "config.py"]
 
 
 def run(cmd):
@@ -50,7 +51,8 @@ def main():
     # Ensure /lib exists on the Pico (only create if missing)
     check = subprocess.run(
         ["mpremote", "ls", ":lib/"],
-        capture_output=True, text=True,
+        capture_output=True,
+        text=True,
     )
     if check.returncode != 0:
         print("  /lib/ not found on Pico, creating...")
