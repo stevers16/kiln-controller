@@ -112,15 +112,6 @@ equalizing/conditioning. Manual advance is available via the REST API.
 
 ---
 
-## Spec documents
-
-| File | Contents |
-|---|---|
-| `lora_telemetry_spec.md` | LoRa wiring, SQLite schema, REST API endpoints, test plan |
-| `PROJECT.md` | Software status maintained by Claude Code |
-
----
-
 ## Status
 
 Pico firmware is at the integration stage. All 12 `lib/` modules are complete and
