@@ -8,9 +8,11 @@
 # If boot.py was interrupted with Ctrl-C, or /no_main exists, bail out
 # immediately and drop to the REPL without touching any hardware.
 import builtins
+
 if getattr(builtins, "_kiln_skip_main", False):
     print("main.py: skip flag set by boot.py -- not starting controller.")
     import sys
+
     sys.exit(0)
 
 import machine
@@ -67,21 +69,29 @@ schedule = None
 
 # Built-in schedule filenames (read-only)
 BUILTIN_SCHEDULES = (
-    "maple_05in.json", "maple_1in.json",
-    "beech_05in.json", "beech_1in.json",
+    "maple_05in.json",
+    "maple_1in.json",
+    "beech_05in.json",
+    "beech_1in.json",
 )
 
 # HTTP status text
 HTTP_STATUS = {
-    200: "OK", 400: "Bad Request", 401: "Unauthorized",
-    403: "Forbidden", 404: "Not Found", 409: "Conflict",
-    413: "Payload Too Large", 500: "Internal Server Error",
+    200: "OK",
+    400: "Bad Request",
+    401: "Unauthorized",
+    403: "Forbidden",
+    404: "Not Found",
+    409: "Conflict",
+    413: "Payload Too Large",
+    500: "Internal Server Error",
     503: "Service Unavailable",
 }
 
 # -----------------------------------------------------------------------
 # Hardware initialisation
 # -----------------------------------------------------------------------
+
 
 def _try_init(label, fn):
     """Run a hardware init step, logging any failure but not raising.
@@ -98,6 +108,7 @@ def _try_init(label, fn):
     # next call hangs and never returns.
     try:
         import sys
+
         sys.stdout.flush()
     except Exception:
         pass
@@ -166,9 +177,7 @@ def init_hardware():
     exhaust = _try_init("ExhaustFan", lambda: ExhaustFan(logger=logger))
 
     # 8. Vents
-    vents = _try_init(
-        "Vents", lambda: Vents(current_monitor=monitor_5v, logger=logger)
-    )
+    vents = _try_init("Vents", lambda: Vents(current_monitor=monitor_5v, logger=logger))
 
     # 9. Heater
     heater = _try_init("Heater", lambda: Heater(logger=logger))
@@ -179,43 +188,57 @@ def init_hardware():
         _load_calibration(moisture, sdcard)
 
     # 11. Display
-    display = _try_init(
-        "Display", lambda: Display(timeout_s=config.DISPLAY_TIMEOUT_S)
-    )
+    display = _try_init("Display", lambda: Display(timeout_s=config.DISPLAY_TIMEOUT_S))
 
     # 12. LoRa
     lora = _try_init("LoRa", lambda: LoRa(logger=logger))
 
     # 13. Schedule controller (requires all critical hardware -- skip if missing)
-    required = (sdcard, sensors, moisture, heater, exhaust,
-                circulation, vents, lora)
+    required = (sdcard, sensors, moisture, heater, exhaust, circulation, vents, lora)
     if all(x is not None for x in required):
         schedule = _try_init(
             "KilnSchedule",
             lambda: KilnSchedule(
-                sdcard=sdcard, sensors=sensors, moisture=moisture,
-                heater=heater, exhaust=exhaust, circulation=circulation,
-                vents=vents, lora=lora, logger=logger,
+                sdcard=sdcard,
+                sensors=sensors,
+                moisture=moisture,
+                heater=heater,
+                exhaust=exhaust,
+                circulation=circulation,
+                vents=vents,
+                lora=lora,
+                logger=logger,
             ),
         )
     else:
         missing = [
-            n for n, x in zip(
-                ("sdcard", "sensors", "moisture", "heater", "exhaust",
-                 "circulation", "vents", "lora"),
+            n
+            for n, x in zip(
+                (
+                    "sdcard",
+                    "sensors",
+                    "moisture",
+                    "heater",
+                    "exhaust",
+                    "circulation",
+                    "vents",
+                    "lora",
+                ),
                 required,
             )
             if x is None
         ]
         print(f"[init] KilnSchedule SKIPPED -- missing: {missing}")
         if logger is not None:
-            logger.event("main", f"KilnSchedule skipped, missing: {missing}",
-                         level="ERROR")
+            logger.event(
+                "main", f"KilnSchedule skipped, missing: {missing}", level="ERROR"
+            )
 
 
 # -----------------------------------------------------------------------
 # Calibration loader
 # -----------------------------------------------------------------------
+
 
 def _load_calibration(moisture_probe, sd):
     text = sd.read_text("calibration.json")
@@ -232,21 +255,34 @@ def _load_calibration(moisture_probe, sd):
 
 
 # -----------------------------------------------------------------------
-# WiFi AP
+# WiFi
 # -----------------------------------------------------------------------
 
+
 def start_wifi():
+    """
+    Bring up the WiFi interface based on config.WIFI_MODE.
+
+    "ap"  -- Pico hosts its own access point (production)
+    "sta" -- Pico joins an existing WiFi network (development)
+    """
+    mode = getattr(config, "WIFI_MODE", "ap").lower()
+    if mode == "sta":
+        return _start_wifi_sta()
+    return _start_wifi_ap()
+
+
+def _start_wifi_ap():
     # cyw43 driver on Pico W / Pico 2 W:
-    #   - parameter is `essid`, not `ssid`
-    #   - do NOT pass `security` -- the driver auto-selects WPA2-PSK
-    #     when a password is given, OPEN when no password is given
     #   - WPA2 password must be 8-63 ASCII characters
     #   - config must be set BEFORE active(True)
     #   - the AP can only be started/stopped once per reboot
     pw = config.AP_PASSWORD
     if pw and len(pw) < 8:
-        print(f"[main] WARNING: AP_PASSWORD is {len(pw)} chars; "
-              f"WPA2 requires 8-63. AP will fall back to open.")
+        print(
+            f"[main] WARNING: AP_PASSWORD is {len(pw)} chars; "
+            f"WPA2 requires 8-63. AP will fall back to open."
+        )
 
     ap = network.WLAN(network.AP_IF)
     if pw and len(pw) >= 8:
@@ -263,15 +299,58 @@ def start_wifi():
         time.sleep_ms(100)
 
     ip = ap.ifconfig()[0]
-    logger.event(
-        "main", f"WiFi AP active -- SSID={config.AP_SSID} IP={ip} ({sec})"
-    )
+    logger.event("main", f"WiFi AP active -- SSID={config.AP_SSID} IP={ip} ({sec})")
     return ap
+
+
+def _start_wifi_sta():
+    """
+    Connect to an existing WiFi network as a station.
+    Used in development so other machines on the LAN can hit the REST API.
+    """
+    ssid = config.STA_SSID
+    pw = config.STA_PASSWORD
+
+    sta = network.WLAN(network.STA_IF)
+    sta.active(True)
+
+    def _log(msg, level="INFO"):
+        if logger is not None:
+            logger.event("main", msg, level=level)
+        else:
+            print(f"[main] {msg}")
+
+    if sta.isconnected():
+        # Already connected from a previous boot? Reuse it.
+        ip = sta.ifconfig()[0]
+        _log(f"WiFi STA already connected -- SSID={ssid} IP={ip}")
+        return sta
+
+    print(f"[main] Connecting to WiFi SSID={ssid} ...")
+    sta.connect(ssid, pw)
+
+    # Wait up to 20 seconds for association + DHCP
+    for _ in range(200):
+        if sta.isconnected():
+            break
+        time.sleep_ms(100)
+
+    if not sta.isconnected():
+        status = sta.status()
+        _log(f"WiFi STA failed to connect to {ssid} (status={status})", level="ERROR")
+        return sta
+
+    cfg = sta.ifconfig()
+    ip = cfg[0]
+    gateway = cfg[2]
+    _log(f"WiFi STA connected -- SSID={ssid} IP={ip} GW={gateway}")
+    return sta
 
 
 # -----------------------------------------------------------------------
 # RTC sync
 # -----------------------------------------------------------------------
+
 
 def set_rtc(unix_ts):
     t = time.localtime(unix_ts)
@@ -286,6 +365,7 @@ def _rtc_is_set():
 # Uptime helper
 # -----------------------------------------------------------------------
 
+
 def _uptime_s():
     return time.ticks_diff(time.ticks_ms(), _boot_ticks) // 1000
 
@@ -294,65 +374,69 @@ def _uptime_s():
 # Status cache
 # -----------------------------------------------------------------------
 
+
 def _update_status_cache():
+    """Build the status cache, tolerating any missing modules."""
     global _status_cache
-    s = schedule.status()
 
-    # Read additional data from modules
-    try:
-        sensor_data = schedule._last_sensor_read or {}
-    except Exception:
-        sensor_data = {}
-
-    try:
-        mc_data = schedule._last_mc_read or {}
-    except Exception:
-        mc_data = {}
+    # Schedule may be None if init failed -- use an empty dict so .get() works
+    s = {}
+    sensor_data = {}
+    mc_data = {}
+    total_h = None
+    stage_min_h = None
+    active_alerts = []
+    if schedule is not None:
+        try:
+            s = schedule.status() or {}
+        except Exception as e:
+            print(f"[main] schedule.status() failed: {e}")
+        try:
+            sensor_data = schedule._last_sensor_read or {}
+        except Exception:
+            pass
+        try:
+            mc_data = schedule._last_mc_read or {}
+        except Exception:
+            pass
+        try:
+            if schedule._running and schedule._run_start_ms:
+                elapsed = time.ticks_diff(time.ticks_ms(), schedule._run_start_ms)
+                total_h = round(elapsed / 3_600_000, 2)
+        except Exception:
+            pass
+        try:
+            if schedule._schedule and schedule._running:
+                stages = schedule._schedule.get("stages", [])
+                idx = schedule._stage_index
+                if 0 <= idx < len(stages):
+                    stage_min_h = stages[idx].get("min_duration_h")
+        except Exception:
+            pass
+        try:
+            now = time.ticks_ms()
+            for atype, ts in schedule._last_alert_ts.items():
+                if time.ticks_diff(now, ts) < 30 * 60_000:
+                    active_alerts.append(atype)
+        except Exception:
+            pass
 
     cur_12v = None
     cur_5v = None
-    try:
-        r12 = monitor_12v.read()
-        if r12:
-            cur_12v = r12.get("current_mA")
-    except Exception:
-        pass
-    try:
-        r5 = monitor_5v.read()
-        if r5:
-            cur_5v = r5.get("current_mA")
-    except Exception:
-        pass
-
-    # Total elapsed hours
-    total_h = None
-    try:
-        if schedule._running and schedule._run_start_ms:
-            elapsed = time.ticks_diff(time.ticks_ms(), schedule._run_start_ms)
-            total_h = round(elapsed / 3_600_000, 2)
-    except Exception:
-        pass
-
-    # Stage min hours
-    stage_min_h = None
-    try:
-        if schedule._schedule and schedule._running:
-            stages = schedule._schedule.get("stages", [])
-            idx = schedule._stage_index
-            if 0 <= idx < len(stages):
-                stage_min_h = stages[idx].get("min_duration_h")
-    except Exception:
-        pass
-
-    # Active alerts (alert types currently in suppression window)
-    active_alerts = []
-    try:
-        now = time.ticks_ms()
-        for atype, ts in schedule._last_alert_ts.items():
-            if time.ticks_diff(now, ts) < 30 * 60_000:
-                active_alerts.append(atype)
-    except Exception:
-        pass
+    if monitor_12v is not None:
+        try:
+            r12 = monitor_12v.read()
+            if r12:
+                cur_12v = r12.get("current_mA")
+        except Exception:
+            pass
+    if monitor_5v is not None:
+        try:
+            r5 = monitor_5v.read()
+            if r5:
+                cur_5v = r5.get("current_mA")
+        except Exception:
+            pass
 
     _status_cache = {
         "ts": time.time() if _rtc_is_set() else 0,
@@ -386,7 +470,23 @@ def _update_status_cache():
         "current_12v_ma": cur_12v,
         "current_5v_ma": cur_5v,
         "active_alerts": active_alerts,
+        "degraded_modules": _missing_modules(),
     }
+
+
+def _missing_modules():
+    """Return a list of module names that failed to initialize."""
+    return [
+        n for n, x in (
+            ("sdcard", sdcard), ("sensors", sensors),
+            ("monitor_12v", monitor_12v), ("monitor_5v", monitor_5v),
+            ("circulation", circulation), ("exhaust", exhaust),
+            ("vents", vents), ("heater", heater),
+            ("moisture", moisture), ("display", display),
+            ("lora", lora), ("schedule", schedule),
+        )
+        if x is None
+    ]
 
 
 def _safe_int(val):
@@ -402,6 +502,7 @@ def _safe_int(val):
 # Display pages
 # -----------------------------------------------------------------------
 
+
 def _fmt(val, unit="", decimals=1):
     if val is None:
         return "--"
@@ -416,7 +517,9 @@ def render_status_page():
     if s.get("run_active"):
         display.draw_text(10, 10, s.get("stage_name") or "Running", Color.WHITE, 24)
         display.draw_text(10, 40, f"Type: {s.get('stage_type', '--')}", Color.WHITE, 16)
-        display.draw_text(10, 65, f"Elapsed: {_fmt(s.get('stage_elapsed_h'), 'h')}", Color.WHITE, 16)
+        display.draw_text(
+            10, 65, f"Elapsed: {_fmt(s.get('stage_elapsed_h'), 'h')}", Color.WHITE, 16
+        )
     else:
         display.draw_text(10, 10, "Idle", Color.WHITE, 32)
 
@@ -443,12 +546,28 @@ def render_sensors_page():
     display.draw_text(10, 10, "Sensors", Color.WHITE, 24)
 
     display.draw_text(10, 45, "Lumber:", Color.GREEN, 16)
-    display.draw_text(10, 65, f"  T: {_fmt(s.get('temp_lumber'), ' C')} / {_fmt(s.get('target_temp_c'), ' C')}", Color.WHITE, 16)
-    display.draw_text(10, 85, f"  RH: {_fmt(s.get('rh_lumber'), '%')} / {_fmt(s.get('target_rh_pct'), '%')}", Color.WHITE, 16)
+    display.draw_text(
+        10,
+        65,
+        f"  T: {_fmt(s.get('temp_lumber'), ' C')} / {_fmt(s.get('target_temp_c'), ' C')}",
+        Color.WHITE,
+        16,
+    )
+    display.draw_text(
+        10,
+        85,
+        f"  RH: {_fmt(s.get('rh_lumber'), '%')} / {_fmt(s.get('target_rh_pct'), '%')}",
+        Color.WHITE,
+        16,
+    )
 
     display.draw_text(10, 115, "Intake:", Color.GREEN, 16)
-    display.draw_text(10, 135, f"  T: {_fmt(s.get('temp_intake'), ' C')}", Color.WHITE, 16)
-    display.draw_text(10, 155, f"  RH: {_fmt(s.get('rh_intake'), '%')}", Color.WHITE, 16)
+    display.draw_text(
+        10, 135, f"  T: {_fmt(s.get('temp_intake'), ' C')}", Color.WHITE, 16
+    )
+    display.draw_text(
+        10, 155, f"  RH: {_fmt(s.get('rh_intake'), '%')}", Color.WHITE, 16
+    )
 
 
 def render_moisture_page():
@@ -456,12 +575,16 @@ def render_moisture_page():
     s = _status_cache
     display.draw_text(10, 10, "Moisture", Color.WHITE, 24)
 
-    display.draw_text(10, 45, f"Ch1: {_fmt(s.get('mc_channel_1'), '% MC')}", Color.WHITE, 16)
+    display.draw_text(
+        10, 45, f"Ch1: {_fmt(s.get('mc_channel_1'), '% MC')}", Color.WHITE, 16
+    )
     r1 = s.get("mc_resistance_1")
     if r1 is not None:
         display.draw_text(10, 65, f"  R: {r1} ohm", Color.WHITE, 16)
 
-    display.draw_text(10, 95, f"Ch2: {_fmt(s.get('mc_channel_2'), '% MC')}", Color.WHITE, 16)
+    display.draw_text(
+        10, 95, f"Ch2: {_fmt(s.get('mc_channel_2'), '% MC')}", Color.WHITE, 16
+    )
     r2 = s.get("mc_resistance_2")
     if r2 is not None:
         display.draw_text(10, 115, f"  R: {r2} ohm", Color.WHITE, 16)
@@ -476,8 +599,12 @@ def render_system_page():
     s = _status_cache
     display.draw_text(10, 10, "System", Color.WHITE, 24)
 
-    display.draw_text(10, 45, f"12V: {_fmt(s.get('current_12v_ma'), ' mA', 0)}", Color.WHITE, 16)
-    display.draw_text(10, 65, f" 5V: {_fmt(s.get('current_5v_ma'), ' mA', 0)}", Color.WHITE, 16)
+    display.draw_text(
+        10, 45, f"12V: {_fmt(s.get('current_12v_ma'), ' mA', 0)}", Color.WHITE, 16
+    )
+    display.draw_text(
+        10, 65, f" 5V: {_fmt(s.get('current_5v_ma'), ' mA', 0)}", Color.WHITE, 16
+    )
 
     up = _uptime_s()
     h = up // 3600
@@ -485,7 +612,13 @@ def render_system_page():
     display.draw_text(10, 95, f"Uptime: {h}h {m}m", Color.WHITE, 16)
 
     sd_ok = sdcard.is_mounted() if sdcard else False
-    display.draw_text(10, 120, f"SD: {'OK' if sd_ok else 'NONE'}", Color.GREEN if sd_ok else Color.RED, 16)
+    display.draw_text(
+        10,
+        120,
+        f"SD: {'OK' if sd_ok else 'NONE'}",
+        Color.GREEN if sd_ok else Color.RED,
+        16,
+    )
 
     tx = lora.tx_count if lora else 0
     display.draw_text(10, 145, f"LoRa TX: {tx}", Color.WHITE, 16)
@@ -494,6 +627,7 @@ def render_system_page():
 # -----------------------------------------------------------------------
 # HTTP server
 # -----------------------------------------------------------------------
+
 
 async def send_json(writer, data, status=200):
     body = json.dumps(data)
@@ -641,26 +775,26 @@ async def _route(method, path, query, body, writer):
     if method == "GET" and path == "/schedules":
         return await handle_schedules_list(writer)
     if method == "GET" and path.startswith("/schedules/"):
-        filename = path[len("/schedules/"):]
+        filename = path[len("/schedules/") :]
         return await handle_schedule_get(filename, writer)
     if method == "PUT" and path.startswith("/schedules/"):
-        filename = path[len("/schedules/"):]
+        filename = path[len("/schedules/") :]
         return await handle_schedule_put(filename, body, writer)
     if method == "DELETE" and path.startswith("/schedules/"):
-        filename = path[len("/schedules/"):]
+        filename = path[len("/schedules/") :]
         return await handle_schedule_delete(filename, writer)
 
     if method == "GET" and path.startswith("/logs/"):
         # /logs/{run_id}/events
-        parts = path[len("/logs/"):].split("/")
+        parts = path[len("/logs/") :].split("/")
         run_id = parts[0] if parts else ""
         return await handle_logs_events(run_id, writer)
     if method == "DELETE" and path.startswith("/logs/"):
-        run_id = path[len("/logs/"):].rstrip("/")
+        run_id = path[len("/logs/") :].rstrip("/")
         return await handle_logs_delete(run_id, writer)
 
     if method == "PUT" and path.startswith("/modules/"):
-        mod_path = path[len("/modules/"):]
+        mod_path = path[len("/modules/") :]
         return await handle_module_upload(mod_path, body, writer)
 
     await send_error(writer, "Not found", 404)
@@ -670,16 +804,20 @@ async def _route(method, path, query, body, writer):
 # Endpoint handlers
 # -----------------------------------------------------------------------
 
+
 async def handle_health(writer):
-    await send_json(writer, {
-        "status": "ok",
-        "uptime_s": _uptime_s(),
-        "free_mem_bytes": gc.mem_free(),
-        "sdcard_mounted": sdcard.is_mounted(),
-        "rtc_set": _rtc_is_set(),
-        "run_active": schedule._running if schedule else False,
-        "firmware_version": config.VERSION,
-    })
+    await send_json(
+        writer,
+        {
+            "status": "ok",
+            "uptime_s": _uptime_s(),
+            "free_mem_bytes": gc.mem_free(),
+            "sdcard_mounted": sdcard.is_mounted(),
+            "rtc_set": _rtc_is_set(),
+            "run_active": schedule._running if schedule else False,
+            "firmware_version": config.VERSION,
+        },
+    )
 
 
 async def handle_status(writer):
@@ -689,11 +827,14 @@ async def handle_status(writer):
 async def handle_version(writer):
     mp_ver = uos.uname().version if hasattr(uos.uname(), "version") else "unknown"
     board = uos.uname().machine if hasattr(uos.uname(), "machine") else "unknown"
-    await send_json(writer, {
-        "firmware_version": config.VERSION,
-        "micropython_version": mp_ver,
-        "board": board,
-    })
+    await send_json(
+        writer,
+        {
+            "firmware_version": config.VERSION,
+            "micropython_version": mp_ver,
+            "board": board,
+        },
+    )
 
 
 async def handle_time(body, writer):
@@ -861,13 +1002,13 @@ def _parse_event_line(line):
         # Extract level
         level_start = line.index("[", 20)
         level_end = line.index("]", level_start)
-        level = line[level_start + 1:level_end].strip()
+        level = line[level_start + 1 : level_end].strip()
         # Extract source
         src_start = line.index("[", level_end + 1)
         src_end = line.index("]", src_start)
-        source = line[src_start + 1:src_end].strip()
+        source = line[src_start + 1 : src_end].strip()
         # Message is everything after
-        message = line[src_end + 2:].strip()
+        message = line[src_end + 2 :].strip()
         # Try to extract alert code (messages starting with known patterns)
         code = None
         if "ALERT;" in message:
@@ -901,8 +1042,16 @@ def _parse_ts_str(ts_str):
     d = ts_str.split(" ")
     ymd = d[0].split("-")
     hms = d[1].split(":")
-    t = (int(ymd[0]), int(ymd[1]), int(ymd[2]),
-         int(hms[0]), int(hms[1]), int(hms[2]), 0, 0)
+    t = (
+        int(ymd[0]),
+        int(ymd[1]),
+        int(ymd[2]),
+        int(hms[0]),
+        int(hms[1]),
+        int(hms[2]),
+        0,
+        0,
+    )
     return time.mktime(t)
 
 
@@ -953,15 +1102,17 @@ async def handle_runs(writer):
         if len(rid) >= 13:
             started = f"{rid[0:4]}-{rid[4:6]}-{rid[6:8]} {rid[9:11]}:{rid[11:13]}"
 
-        runs.append({
-            "id": rid,
-            "started_at_str": started,
-            "event_log": event_name,
-            "data_csv": data_name,
-            "data_rows": data_rows,
-            "event_count": event_count,
-            "size_bytes": size,
-        })
+        runs.append(
+            {
+                "id": rid,
+                "started_at_str": started,
+                "event_log": event_name,
+                "data_csv": data_name,
+                "data_rows": data_rows,
+                "event_count": event_count,
+                "size_bytes": size,
+            }
+        )
 
     await send_json(writer, {"runs": runs})
 
@@ -978,11 +1129,14 @@ async def handle_logs_events(run_id, writer):
         with open(path, "r") as f:
             for line in f:
                 lines.append(line.strip())
-        await send_json(writer, {
-            "run": run_id,
-            "lines": lines,
-            "line_count": len(lines),
-        })
+        await send_json(
+            writer,
+            {
+                "run": run_id,
+                "lines": lines,
+                "line_count": len(lines),
+            },
+        )
     except OSError:
         await send_error(writer, "Run not found", 404)
 
@@ -998,7 +1152,11 @@ async def handle_logs_delete(run_id, writer):
             suffix = logger._file_suffix() if hasattr(logger, "_file_suffix") else ""
             # Check if run_id matches current active log
             if logger._event_file:
-                active_name = str(logger._event_file.name) if hasattr(logger._event_file, "name") else ""
+                active_name = (
+                    str(logger._event_file.name)
+                    if hasattr(logger._event_file, "name")
+                    else ""
+                )
                 if run_id in active_name:
                     await send_error(writer, "Cannot delete active run", 409)
                     return
@@ -1039,13 +1197,16 @@ async def handle_sdcard_info(writer):
         used = total - free
 
         files = sdcard.listdir()
-        await send_json(writer, {
-            "mounted": True,
-            "total_bytes": total,
-            "used_bytes": used,
-            "free_bytes": free,
-            "file_count": len(files),
-        })
+        await send_json(
+            writer,
+            {
+                "mounted": True,
+                "total_bytes": total,
+                "used_bytes": used,
+                "free_bytes": free,
+                "file_count": len(files),
+            },
+        )
     except Exception as e:
         await send_json(writer, {"mounted": True, "error": str(e)})
 
@@ -1120,18 +1281,30 @@ async def handle_schedule_put(filename, body, writer):
         await send_error(writer, "At least one stage required", 400)
         return
     for i, stage in enumerate(stages):
-        for key in ("name", "stage_type", "target_temp_c", "target_rh_pct", "min_duration_h"):
+        for key in (
+            "name",
+            "stage_type",
+            "target_temp_c",
+            "target_rh_pct",
+            "min_duration_h",
+        ):
             if key not in stage:
                 await send_error(writer, f"Stage {i} missing field: {key}", 400)
                 return
         stype = stage["stage_type"]
         if stype == "drying":
             if stage.get("target_mc_pct") is None:
-                await send_error(writer, f"Stage {i}: drying stage requires target_mc_pct", 400)
+                await send_error(
+                    writer, f"Stage {i}: drying stage requires target_mc_pct", 400
+                )
                 return
         elif stype in ("equalizing", "conditioning"):
             if stage.get("target_mc_pct") is not None:
-                await send_error(writer, f"Stage {i}: {stype} stage must have null target_mc_pct", 400)
+                await send_error(
+                    writer,
+                    f"Stage {i}: {stype} stage must have null target_mc_pct",
+                    400,
+                )
                 return
 
     # Write to SD
@@ -1139,11 +1312,14 @@ async def handle_schedule_put(filename, body, writer):
     try:
         with open(path, "w") as f:
             f.write(json.dumps(data))
-        await send_json(writer, {
-            "ok": True,
-            "filename": filename,
-            "stage_count": len(stages),
-        })
+        await send_json(
+            writer,
+            {
+                "ok": True,
+                "filename": filename,
+                "stage_count": len(stages),
+            },
+        )
     except Exception as e:
         await send_error(writer, f"Write failed: {e}", 500)
 
@@ -1162,24 +1338,30 @@ async def handle_schedule_delete(filename, writer):
 async def handle_calibration_get(writer):
     text = sdcard.read_text("calibration.json")
     if text is None:
-        await send_json(writer, {
-            "channel_1_offset": 0.0,
-            "channel_2_offset": 0.0,
-            "calibrated_at": None,
-            "source": "defaults",
-        })
+        await send_json(
+            writer,
+            {
+                "channel_1_offset": 0.0,
+                "channel_2_offset": 0.0,
+                "calibrated_at": None,
+                "source": "defaults",
+            },
+        )
         return
     try:
         cal = json.loads(text)
         cal["source"] = "calibration.json"
         await send_json(writer, cal)
     except Exception:
-        await send_json(writer, {
-            "channel_1_offset": 0.0,
-            "channel_2_offset": 0.0,
-            "calibrated_at": None,
-            "source": "defaults",
-        })
+        await send_json(
+            writer,
+            {
+                "channel_1_offset": 0.0,
+                "channel_2_offset": 0.0,
+                "calibrated_at": None,
+                "source": "defaults",
+            },
+        )
 
 
 async def handle_calibration_post(body, writer):
@@ -1231,20 +1413,23 @@ async def handle_moisture_live(writer):
             reading = moisture.read()
             temp_corrected = False
 
-        await send_json(writer, {
-            "channel_1": {
-                "mc_pct": reading.get("ch1_mc_pct"),
-                "resistance_ohms": _safe_int(reading.get("ch1_ohms")),
-                "temp_corrected": temp_corrected,
-                "temp_c": temp_c,
+        await send_json(
+            writer,
+            {
+                "channel_1": {
+                    "mc_pct": reading.get("ch1_mc_pct"),
+                    "resistance_ohms": _safe_int(reading.get("ch1_ohms")),
+                    "temp_corrected": temp_corrected,
+                    "temp_c": temp_c,
+                },
+                "channel_2": {
+                    "mc_pct": reading.get("ch2_mc_pct"),
+                    "resistance_ohms": _safe_int(reading.get("ch2_ohms")),
+                    "temp_corrected": temp_corrected,
+                    "temp_c": temp_c,
+                },
             },
-            "channel_2": {
-                "mc_pct": reading.get("ch2_mc_pct"),
-                "resistance_ohms": _safe_int(reading.get("ch2_ohms")),
-                "temp_corrected": temp_corrected,
-                "temp_c": temp_c,
-            },
-        })
+        )
     except Exception as e:
         await send_error(writer, f"Read failed: {e}", 500)
 
@@ -1309,12 +1494,15 @@ async def handle_run_advance(writer):
     try:
         old_idx, new_idx, new_name = schedule.advance()
         _update_status_cache()
-        await send_json(writer, {
-            "ok": True,
-            "previous_stage": old_idx,
-            "new_stage": new_idx,
-            "new_stage_name": new_name,
-        })
+        await send_json(
+            writer,
+            {
+                "ok": True,
+                "previous_stage": old_idx,
+                "new_stage": new_idx,
+                "new_stage_name": new_name,
+            },
+        )
     except RuntimeError as e:
         await send_error(writer, str(e), 409)
 
@@ -1331,11 +1519,14 @@ async def handle_test_run(writer):
     _test_running = True
     asyncio.create_task(_run_test_suite())
 
-    await send_json(writer, {
-        "ok": True,
-        "test_count": len(TESTS),
-        "estimated_duration_s": 300,
-    })
+    await send_json(
+        writer,
+        {
+            "ok": True,
+            "test_count": len(TESTS),
+            "estimated_duration_s": 300,
+        },
+    )
 
 
 async def handle_test_status(writer):
@@ -1367,11 +1558,13 @@ async def handle_modules_list(writer):
     # main.py at root
     try:
         stat = uos.stat("main.py")
-        modules.append({
-            "path": "main.py",
-            "size_bytes": stat[6],
-            "modified": _stat_time_str(stat),
-        })
+        modules.append(
+            {
+                "path": "main.py",
+                "size_bytes": stat[6],
+                "modified": _stat_time_str(stat),
+            }
+        )
     except Exception:
         pass
 
@@ -1382,11 +1575,13 @@ async def handle_modules_list(writer):
                 fpath = f"lib/{fname}"
                 try:
                     stat = uos.stat(fpath)
-                    modules.append({
-                        "path": fpath,
-                        "size_bytes": stat[6],
-                        "modified": _stat_time_str(stat),
-                    })
+                    modules.append(
+                        {
+                            "path": fpath,
+                            "size_bytes": stat[6],
+                            "modified": _stat_time_str(stat),
+                        }
+                    )
                 except Exception:
                     pass
     except Exception:
@@ -1419,12 +1614,15 @@ async def handle_module_upload(mod_path, body, writer):
         await send_error(writer, f"Write failed: {e}", 500)
         return
 
-    await send_json(writer, {
-        "ok": True,
-        "path": mod_path,
-        "size_bytes": size,
-        "rebooting": True,
-    })
+    await send_json(
+        writer,
+        {
+            "ok": True,
+            "path": mod_path,
+            "size_bytes": size,
+            "rebooting": True,
+        },
+    )
 
     # Schedule reboot after response is sent
     asyncio.create_task(_delayed_reboot())
@@ -1446,6 +1644,7 @@ def _stat_time_str(stat):
 # -----------------------------------------------------------------------
 # File lookup helpers
 # -----------------------------------------------------------------------
+
 
 def _find_data_csv(run_id=""):
     if not sdcard.is_mounted():
@@ -1509,14 +1708,16 @@ async def _run_test_suite():
     # Initialise results
     _test_results = []
     for tid, name, group in TESTS:
-        _test_results.append({
-            "id": tid,
-            "name": name,
-            "group": group,
-            "status": "pending",
-            "detail": None,
-            "duration_ms": None,
-        })
+        _test_results.append(
+            {
+                "id": tid,
+                "name": name,
+                "group": group,
+                "status": "pending",
+                "detail": None,
+                "duration_ms": None,
+            }
+        )
 
     start_ms = time.ticks_ms()
 
@@ -1615,8 +1816,12 @@ async def _run_single_test(tid):
         ti = data.get("temp_intake")
         ri = data.get("rh_intake")
         if tl is not None and rl is not None and ti is not None and ri is not None:
-            ok = (-10 <= tl <= 80 and 0 <= rl <= 100 and
-                  -10 <= ti <= 80 and 0 <= ri <= 100)
+            ok = (
+                -10 <= tl <= 80
+                and 0 <= rl <= 100
+                and -10 <= ti <= 80
+                and 0 <= ri <= 100
+            )
             if ok:
                 return ("pass", f"L:{tl:.1f}C/{rl:.0f}% I:{ti:.1f}C/{ri:.0f}%")
             return ("fail", f"Values out of range: {data}")
@@ -1720,43 +1925,59 @@ async def _run_single_test(tid):
 # Async task loops
 # -----------------------------------------------------------------------
 
+
 async def control_loop():
     while True:
         try:
-            schedule.tick()
+            if schedule is not None:
+                schedule.tick()
             _update_status_cache()
             # Send telemetry via LoRa every tick when a run is active
-            if schedule._running:
+            if schedule is not None and lora is not None and schedule._running:
                 _send_lora_telemetry()
         except Exception as e:
-            logger.event("main", f"Control loop error: {e}", level="ERROR")
-        await asyncio.sleep(schedule.tick_interval_s)
+            print(f"[main] control loop error: {e}")
+            if logger is not None:
+                try:
+                    logger.event("main", f"Control loop error: {e}", level="ERROR")
+                except Exception:
+                    pass
+        # If schedule is unavailable, fall back to a 60s tick so the
+        # status cache and degraded info still refresh periodically.
+        interval = schedule.tick_interval_s if schedule is not None else 60
+        await asyncio.sleep(interval)
 
 
 def _send_lora_telemetry():
     """Build and send a LoRa telemetry packet matching the Pi4 SQLite schema."""
+    if lora is None:
+        return
     s = _status_cache
     try:
-        lora.send_telemetry({
-            "ts": s.get("ts", 0),
-            "stage": s.get("stage_name", ""),
-            "temp_lumber": s.get("temp_lumber"),
-            "temp_intake": s.get("temp_intake"),
-            "humidity_lumber": s.get("rh_lumber"),
-            "humidity_intake": s.get("rh_intake"),
-            "mc_channel_1": s.get("mc_channel_1"),
-            "mc_channel_2": s.get("mc_channel_2"),
-            "exhaust_fan_rpm": s.get("exhaust_fan_rpm"),
-            "exhaust_fan_pct": s.get("exhaust_fan_pct", 0),
-            "circ_fan_on": 1 if s.get("circ_fan_on") else 0,
-            "heater_on": 1 if s.get("heater_on") else 0,
-            "vent_open": 1 if s.get("vent_open") else 0,
-        })
+        lora.send_telemetry(
+            {
+                "ts": s.get("ts", 0),
+                "stage": s.get("stage_name", ""),
+                "temp_lumber": s.get("temp_lumber"),
+                "temp_intake": s.get("temp_intake"),
+                "humidity_lumber": s.get("rh_lumber"),
+                "humidity_intake": s.get("rh_intake"),
+                "mc_channel_1": s.get("mc_channel_1"),
+                "mc_channel_2": s.get("mc_channel_2"),
+                "exhaust_fan_rpm": s.get("exhaust_fan_rpm"),
+                "exhaust_fan_pct": s.get("exhaust_fan_pct", 0),
+                "circ_fan_on": 1 if s.get("circ_fan_on") else 0,
+                "heater_on": 1 if s.get("heater_on") else 0,
+                "vent_open": 1 if s.get("vent_open") else 0,
+            }
+        )
     except Exception as e:
         print(f"[main] LoRa telemetry error: {e}")
 
 
 async def display_loop():
+    if display is None:
+        return  # No display -- nothing to tick
     while True:
         try:
             display.tick()
@@ -1766,15 +1987,20 @@ async def display_loop():
 
 
 async def lora_heartbeat():
+    if lora is None:
+        return
     while True:
         try:
-            if not schedule._running:
-                lora.send_telemetry({
-                    "type": "heartbeat",
-                    "ts": time.time() if _rtc_is_set() else 0,
-                    "uptime_s": _uptime_s(),
-                    "run_active": False,
-                })
+            run_active = schedule is not None and schedule._running
+            if not run_active:
+                lora.send_telemetry(
+                    {
+                        "type": "heartbeat",
+                        "ts": time.time() if _rtc_is_set() else 0,
+                        "uptime_s": _uptime_s(),
+                        "run_active": False,
+                    }
+                )
         except Exception as e:
             print(f"[main] heartbeat error: {e}")
         await asyncio.sleep(300)
@@ -1782,6 +2008,8 @@ async def lora_heartbeat():
 
 async def rpm_reader():
     global _cached_rpm
+    if exhaust is None:
+        return
     while True:
         try:
             if exhaust.is_running:
@@ -1797,6 +2025,7 @@ async def rpm_reader():
 # Main entry point
 # -----------------------------------------------------------------------
 
+
 async def main():
     print(f"Kiln Controller v{config.VERSION}")
     print(f"Board: {uos.uname().machine}")
@@ -1804,24 +2033,40 @@ async def main():
     init_hardware()
     start_wifi()
 
-    # Register display pages
-    display.register_page("status", render_status_page)
-    display.register_page("sensors", render_sensors_page)
-    display.register_page("moisture", render_moisture_page)
-    display.register_page("system", render_system_page)
+    # Register display pages (only if display is available)
+    if display is not None:
+        try:
+            display.register_page("status", render_status_page)
+            display.register_page("sensors", render_sensors_page)
+            display.register_page("moisture", render_moisture_page)
+            display.register_page("system", render_system_page)
+        except Exception as e:
+            print(f"[main] display page registration failed: {e}")
 
-    logger.event("main", "Boot complete. AP started.")
+    missing = _missing_modules()
+    boot_msg = "Boot complete."
+    if missing:
+        boot_msg += f" DEGRADED -- missing: {missing}"
+    if logger is not None:
+        logger.event("main", boot_msg, level="WARNING" if missing else "INFO")
+    else:
+        print(f"[main] {boot_msg}")
+
     _update_status_cache()
 
-    # Launch async tasks
+    # Launch async tasks (each is a no-op if its hardware is missing)
     asyncio.create_task(control_loop())
     asyncio.create_task(display_loop())
     asyncio.create_task(lora_heartbeat())
     asyncio.create_task(rpm_reader())
 
-    # Start HTTP server
+    # Start HTTP server -- always runs, even with no hardware,
+    # so the REST API stays available for remote debugging.
     server = await asyncio.start_server(handle_request, "0.0.0.0", 80)
-    logger.event("main", "HTTP server listening on port 80")
+    if logger is not None:
+        logger.event("main", "HTTP server listening on port 80")
+    else:
+        print("[main] HTTP server listening on port 80")
 
     # Keep running
     while True:
@@ -1833,9 +2078,11 @@ async def main():
 # Boot with exception handling
 # -----------------------------------------------------------------------
 
+
 def _record_boot_error(exc):
     """Persist a traceback to /boot_error.log for post-mortem reading."""
     import sys
+
     try:
         with open("/boot_error.log", "w") as f:
             f.write(f"FATAL at uptime {_uptime_s()}s: {exc}\n")
@@ -1852,6 +2099,7 @@ except KeyboardInterrupt:
     print("Interrupted by user")
 except Exception as e:
     import sys
+
     print("=" * 50)
     print(f"FATAL: {e}")
     print("-" * 50)

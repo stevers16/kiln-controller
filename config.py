@@ -3,9 +3,18 @@
 
 VERSION = "1.0.0"
 
-# WiFi AP
+# WiFi mode: "ap" or "sta"
+#   "ap"  -- Pico hosts its own WiFi access point (production / on-site)
+#   "sta" -- Pico joins an existing WiFi network (development / bench)
+WIFI_MODE = "sta"
+
+# WiFi AP settings (used when WIFI_MODE == "ap")
 AP_SSID = "KilnController"
 AP_PASSWORD = "KampSteve"  # WPA2; empty string for open AP
+
+# WiFi STA settings (used when WIFI_MODE == "sta")
+STA_SSID = "site469"
+STA_PASSWORD = "KampSteve"
 
 # REST API
 API_KEY = "MapleBeech"  # must match Kivy app Settings

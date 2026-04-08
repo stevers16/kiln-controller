@@ -22,21 +22,25 @@ On launch (and on manual refresh), the app attempts connections in order:
 1. Try Pico AP IP (default `192.168.4.1`, port `80`) -- `GET /health`
 2. If no response within 3 seconds, try Pi4 IP (user-configured), port `8080` --
    `GET /health`
-3. If neither responds, show "No connection" state
+3. If neither responds, try to connect to the pico in sta mode, at IP 10.0.0.24 (or other user configured IP)(port 80) -- `GET /health`
+4. If none of the above respond, show "No connection" state
 
 A connection mode indicator is always visible in the navigation bar:
 - Green dot + "Direct" -- connected to Pico AP
 - Blue dot + "Cottage" -- connected to Pi4 daemon
+- Yellow dot + "Pico STA" -- connected to Pico in station mode (testing fallback)
 - Red dot + "Offline" -- no connection
 
 Manual override: a toggle in Settings forces a specific mode. When forced, the app
 does not fall back to the other endpoint.
 
+STA mode is primarily intended for development testing without needing to switch WiFi networks. In the document below 'AP' mode refers to both AP and STA modes, unless otherwise specified.
+
 Auto-refresh retries connection every 30 seconds when offline.
 
 ### Mode-dependent UI
 
-Screens and actions that are only available in AP (Direct) mode are hidden or
+Screens and actions that are only available in AP/STA (Direct) mode are hidden or
 shown as disabled with a "Direct connection required" tooltip in Cottage mode.
 The app never silently attempts a control action when not in AP mode.
 
@@ -68,7 +72,7 @@ Bottom navigation bar with five tabs, always visible:
 | History | chart-line | Yes |
 | Alerts | bell | Yes |
 | Runs | list | Yes |
-| Settings | gear | Yes |
+| Settings | gear | Ye |
 
 AP-only screens (System Test, Schedules, Logs, Start Run, Moisture Calibration,
 Module Upload) are accessed from the Dashboard or Settings, not from the bottom

@@ -1,0 +1,8 @@
+# Kiln Controller - Kivy app dependencies
+# Pin to known-good versions; bump deliberately.
+
+kivy==2.3.1
+requests==2.32.3
+
+# KivyMD will be added in Phase 1 when the bottom-nav shell is built.
+# kivymd>=2.0.1.dev0

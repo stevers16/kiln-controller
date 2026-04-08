@@ -416,10 +416,47 @@ function in sequence, then reports a summary of pass/fail results.
 
 ---
 
+## KivyApp/
+
+Kivy mobile/desktop app -- primary human interface to the kiln. Lives in
+`KivyApp/`. Spec: `Specs/kivy_app_spec.md`. Built incrementally with explicit
+user testing and approval after every phase. Plan file:
+`C:\Users\Steve\.claude\plans\flickering-swinging-balloon.md`.
+
+### Phase status
+
+| Phase | Description | Status |
+|---|---|---|
+| 0 | Environment + hello world (venv, requirements.txt, minimal Kivy App) | Approved |
+| 1 | App skeleton with bottom navigation (5 placeholder tabs) | Awaiting approval |
+| 2 | Settings + persistent storage + API client + auto-detect connection | Not started |
+| 3 | Dashboard MVP (read-only from Pico /status) | Not started |
+| 4 | Dashboard banners + AP-mode action buttons (start/stop/advance) | Not started |
+| 5 | Alerts screen | Not started |
+| 6 | Runs screen + run detail view | Not started |
+| 7 | History graphs (5 plot tabs) | Not started |
+| 8 | Start Run flow (AP only) | Not started |
+| 9 | Schedules viewer + editor (AP only) | Not started |
+| 10 | System Test screen (AP only) | Not started |
+| 11 | Logs screen (AP only) | Not started |
+| 12 | Moisture Calibration (AP only) | Not started |
+| 13 | Module Upload (AP only) | Not started |
+| 14 | Pi4 Cottage mode end-to-end | Blocked on kiln_server |
+| 15 | Android packaging via buildozer | Not started |
+
+### Conventions
+- Standard CPython 3 (NOT MicroPython). Free use of `requests`, `pathlib`, etc.
+- Venv at `KivyApp/.venv/` (gitignored). Dependencies pinned in
+  `KivyApp/requirements.txt`.
+- All HTTP work runs off the Kivy main thread.
+- AP-only screens hide or visibly disable in Cottage mode.
+- See "Kivy app development practices" in `CLAUDE.md` for the full ruleset.
+
+---
+
 ## What still needs building
 
 In rough priority order:
 
 1. **`kiln_server/` Pi4 daemon** -- LoRa RX, SQLite storage, REST API, ntfy.sh alerts
-2. **Kivy Android app** -- mobile interface; queries Pi4 REST API for history/plots,
-   Pico AP REST API for live control
+2. **Kivy app** -- in progress, see "KivyApp/" section above
