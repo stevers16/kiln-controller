@@ -32,6 +32,12 @@ mobile app.
 
 ---
 
+## Schematic and custom PCB
+
+KiCad 9.0 project with schematic and custom PCB layout is in the PCB folder.
+
+---
+
 ## Firmware (Pico 2W -- MicroPython)
 
 All hardware drivers live in `lib/`. Every module is class-based, accepts pin numbers
