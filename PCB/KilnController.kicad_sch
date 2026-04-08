@@ -3648,6 +3648,10 @@
 		(uuid "9bf8f534-d1c4-4351-91dc-d8e98dba310d")
 	)
 	(no_connect
+		(at 78.74 67.31)
+		(uuid "d36e1543-8350-463e-a189-2c405e86f407")
+	)
+	(no_connect
 		(at 66.04 120.65)
 		(uuid "d4f392b2-01b0-46a3-8be1-6cce101f7214")
 	)
@@ -4704,16 +4708,6 @@
 			(justify left bottom)
 		)
 		(uuid "bb5b6151-aab2-4372-ae08-d59760dcad06")
-	)
-	(label "+5V"
-		(at 78.74 67.31 0)
-		(effects
-			(font
-				(size 1.27 1.27)
-			)
-			(justify left bottom)
-		)
-		(uuid "c0dd710d-789d-4803-99c8-8ba0d570c671")
 	)
 	(label "LORA_CS"
 		(at 48.26 107.95 180)

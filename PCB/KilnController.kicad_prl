@@ -117,7 +117,7 @@
     "files": [
       {
         "name": "KilnController.kicad_sch",
-        "open": true,
+        "open": false,
         "window": {
           "display": 0,
           "maximized": true,
@@ -129,7 +129,7 @@
       },
       {
         "name": "KilnController.kicad_pcb",
-        "open": true,
+        "open": false,
         "window": {
           "display": 0,
           "maximized": true,
