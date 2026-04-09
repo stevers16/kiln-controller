@@ -1,7 +1,7 @@
 """Kiln Controller - Kivy App root.
 
-Phase 1: bottom-nav shell with 5 placeholder screens, a top app bar, and a
-static (Offline / red) connection indicator. No network code yet.
+Phase 2: real Settings screen + ConnectionManager + live indicator. The other
+four tabs are still placeholders.
 """
 
 from kivy.app import App
@@ -11,23 +11,35 @@ from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.screenmanager import NoTransition, ScreenManager
 
 from kilnapp import theme
+from kilnapp.api.autodetect import (
+    MODE_COTTAGE,
+    MODE_DIRECT,
+    MODE_OFFLINE,
+    MODE_STA,
+    DetectResult,
+)
+from kilnapp.connection import ConnectionManager
+from kilnapp.screens.dashboard import DashboardScreen
 from kilnapp.screens.placeholder import PlaceholderScreen
+from kilnapp.screens.settings import SettingsScreen
+from kilnapp.storage import SettingsStore
 from kilnapp.widgets.bottom_nav import BottomNav
 from kilnapp.widgets.top_bar import TopBar
 
 
-# Phone-shaped window for desktop development. Real device sets its own size.
+# Phone-shaped window for desktop development.
 Window.size = (390, 780)
 
 
-# Placeholder copy for each tab. Will be replaced by real screens later.
-SCREEN_DEFS = [
-    ("dashboard", "Dashboard", "Live status, sensor readings, equipment state. (Phase 3-4)"),
+# Tabs that are still placeholders in this phase
+PLACEHOLDER_DEFS = [
     ("history", "History", "Time-series plots from /history. (Phase 7)"),
     ("alerts", "Alerts", "Warnings and errors from the kiln. (Phase 5)"),
     ("runs", "Runs", "Past and current drying runs. (Phase 6)"),
-    ("settings", "Settings", "Connection, API key, RTC sync, daemon info. (Phase 2)"),
 ]
+TAB_TITLES = {sn: title for sn, title, _ in PLACEHOLDER_DEFS}
+TAB_TITLES["dashboard"] = "Dashboard"
+TAB_TITLES["settings"] = "Settings"
 
 
 class _Root(BoxLayout):
@@ -46,18 +58,24 @@ class KilnApp(App):
     title = "Kiln Controller"
 
     def build(self):
+        # Persistent settings + connection manager
+        self.settings_store = SettingsStore(self.user_data_dir)
+        self.connection = ConnectionManager(self.settings_store)
+
         root = _Root()
 
         # Top bar
         self.top_bar = TopBar()
         root.add_widget(self.top_bar)
 
-        # Screen manager with one Screen per tab
+        # Screen manager - Dashboard first so the bottom-nav default lands there
         self.screen_manager = ScreenManager(transition=NoTransition())
-        for screen_name, title, note in SCREEN_DEFS:
+        self.screen_manager.add_widget(DashboardScreen(connection=self.connection))
+        for screen_name, title, note in PLACEHOLDER_DEFS:
             self.screen_manager.add_widget(
                 PlaceholderScreen(screen_name=screen_name, title=title, note=note)
             )
+        self.screen_manager.add_widget(SettingsScreen(connection=self.connection))
         root.add_widget(self.screen_manager)
 
         # Bottom nav
@@ -67,9 +85,11 @@ class KilnApp(App):
         # Default tab
         self._switch_screen("dashboard")
 
-        # Phase 1: indicator is hard-coded to Offline. Phase 2 replaces this
-        # with the autodetect result.
-        self.top_bar.indicator.set_state("offline")
+        # Wire indicator -> connection manager
+        self.connection.add_listener(self._on_connection_change)
+
+        # Kick off the first detection cycle
+        self.connection.detect()
 
         return root
 
@@ -77,8 +97,14 @@ class KilnApp(App):
         if screen_name not in self.screen_manager.screen_names:
             return
         self.screen_manager.current = screen_name
-        # Update the top-bar title to match the active tab
-        for sn, title, _note in SCREEN_DEFS:
-            if sn == screen_name:
-                self.top_bar.set_title(title)
-                break
+        self.top_bar.set_title(TAB_TITLES.get(screen_name, "Kiln Controller"))
+
+    def _on_connection_change(self, result: DetectResult) -> None:
+        # Map detection result to indicator state
+        mapping = {
+            MODE_DIRECT: "direct",
+            MODE_COTTAGE: "cottage",
+            MODE_STA: "sta",
+            MODE_OFFLINE: "offline",
+        }
+        self.top_bar.indicator.set_state(mapping.get(result.mode, "offline"))

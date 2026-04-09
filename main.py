@@ -421,6 +421,36 @@ def _update_status_cache():
         except Exception:
             pass
 
+    # Idle direct reads: when no run is active the schedule.tick() loop is
+    # not refreshing the sensor / moisture caches, so /status would otherwise
+    # return None for every temperature, humidity, and MC field. Read the
+    # sensors directly here so the Kivy dashboard (and any other client) can
+    # see live values at idle. This block is skipped while a run is active so
+    # the schedule's cached reads remain authoritative during a drying run.
+    run_active = bool(s.get("running", False))
+    if not run_active:
+        if sensors is not None:
+            try:
+                idle_sensor = sensors.read()
+                if idle_sensor:
+                    sensor_data = idle_sensor
+                    # Lumber temp/RH are read from `s` further down via
+                    # actual_temp_c / actual_rh_pct - inject them so the
+                    # idle path uses the same field names.
+                    s["actual_temp_c"] = idle_sensor.get("temp_lumber")
+                    s["actual_rh_pct"] = idle_sensor.get("rh_lumber")
+            except Exception as e:
+                print(f"[main] idle sensors.read() failed: {e}")
+        if moisture is not None:
+            try:
+                idle_mc = moisture.read()
+                if idle_mc:
+                    mc_data = idle_mc
+                    s["actual_mc_maple"] = idle_mc.get("ch1_mc_pct")
+                    s["actual_mc_beech"] = idle_mc.get("ch2_mc_pct")
+            except Exception as e:
+                print(f"[main] idle moisture.read() failed: {e}")
+
     cur_12v = None
     cur_5v = None
     if monitor_12v is not None:
@@ -1942,9 +1972,19 @@ async def control_loop():
                     logger.event("main", f"Control loop error: {e}", level="ERROR")
                 except Exception:
                     pass
-        # If schedule is unavailable, fall back to a 60s tick so the
-        # status cache and degraded info still refresh periodically.
-        interval = schedule.tick_interval_s if schedule is not None else 60
+        # Pick the next sleep interval:
+        # - During an active run: schedule.tick_interval_s (30 s venting,
+        #   120 s otherwise) - matches the controller's needs.
+        # - When idle (no run active): 10 s, so the status cache (and thus
+        #   the Kivy dashboard) reflects fresh sensor / moisture / current
+        #   readings without 2-minute lag at idle.
+        # - Schedule unavailable: 60 s fallback.
+        if schedule is None:
+            interval = 60
+        elif schedule._running:
+            interval = schedule.tick_interval_s
+        else:
+            interval = 10
         await asyncio.sleep(interval)
 
 
