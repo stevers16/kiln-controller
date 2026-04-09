@@ -4,10 +4,28 @@ from typing import Optional
 
 from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.label import Label
-from kivy.uix.spinner import Spinner
+from kivy.uix.spinner import Spinner, SpinnerOption
 from kivy.uix.textinput import TextInput
 
 from kilnapp import theme
+
+
+class _FlatSpinnerOption(SpinnerOption):
+    """Spinner dropdown row with no inter-item border/gap.
+
+    Plain SpinnerOption inherits Button, which draws a 1-pixel border that
+    looks like a gap between items. Forcing background_normal/background_down
+    to empty strings drops the border.
+    """
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.background_normal = ""
+        self.background_down = ""
+        self.background_color = (0.30, 0.32, 0.38, 1)
+        self.color = theme.TEXT_PRIMARY
+        self.font_size = "14sp"
+        self.height = 36
 
 
 def label(text: str, *, width: int = 130) -> Label:
@@ -69,4 +87,5 @@ def spinner(values, initial: str) -> Spinner:
         font_size="14sp",
         background_color=(0.30, 0.32, 0.38, 1),
         color=theme.TEXT_PRIMARY,
+        option_cls=_FlatSpinnerOption,
     )

@@ -1,0 +1,52 @@
+{
+  "name": "Test Quick - DO NOT USE FOR REAL LUMBER",
+  "species": "maple",
+  "thickness_in": 1.0,
+  "stages": [
+    {
+      "name": "Stage 1 - Quick warm-up",
+      "stage_type": "drying",
+      "target_temp_c": 30,
+      "target_rh_pct": 90,
+      "target_mc_pct": 99.0,
+      "min_duration_h": 0.03,
+      "max_duration_h": 0.5
+    },
+    {
+      "name": "Stage 2 - Quick mid",
+      "stage_type": "drying",
+      "target_temp_c": 32,
+      "target_rh_pct": 80,
+      "target_mc_pct": 99.0,
+      "min_duration_h": 0.03,
+      "max_duration_h": 0.5
+    },
+    {
+      "name": "Stage 3 - Quick final",
+      "stage_type": "drying",
+      "target_temp_c": 34,
+      "target_rh_pct": 70,
+      "target_mc_pct": 99.0,
+      "min_duration_h": 0.03,
+      "max_duration_h": 0.5
+    },
+    {
+      "name": "Test Equalizing",
+      "stage_type": "equalizing",
+      "target_temp_c": 34,
+      "target_rh_pct": 60,
+      "target_mc_pct": null,
+      "min_duration_h": 0.03,
+      "max_duration_h": null
+    },
+    {
+      "name": "Test Conditioning",
+      "stage_type": "conditioning",
+      "target_temp_c": 34,
+      "target_rh_pct": 70,
+      "target_mc_pct": null,
+      "min_duration_h": 0.03,
+      "max_duration_h": null
+    }
+  ]
+}

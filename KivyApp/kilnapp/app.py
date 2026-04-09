@@ -70,7 +70,12 @@ class KilnApp(App):
 
         # Screen manager - Dashboard first so the bottom-nav default lands there
         self.screen_manager = ScreenManager(transition=NoTransition())
-        self.screen_manager.add_widget(DashboardScreen(connection=self.connection))
+        self.screen_manager.add_widget(
+            DashboardScreen(
+                connection=self.connection,
+                on_navigate=self._navigate_to,
+            )
+        )
         for screen_name, title, note in PLACEHOLDER_DEFS:
             self.screen_manager.add_widget(
                 PlaceholderScreen(screen_name=screen_name, title=title, note=note)
@@ -98,6 +103,14 @@ class KilnApp(App):
             return
         self.screen_manager.current = screen_name
         self.top_bar.set_title(TAB_TITLES.get(screen_name, "Kiln Controller"))
+
+    def _navigate_to(self, screen_name: str) -> None:
+        """Programmatic navigation: switch the screen AND sync the bottom nav.
+
+        Used by inter-screen actions like the fault banner -> Alerts tap.
+        """
+        self._switch_screen(screen_name)
+        self.bottom_nav.select(screen_name)
 
     def _on_connection_change(self, result: DetectResult) -> None:
         # Map detection result to indicator state

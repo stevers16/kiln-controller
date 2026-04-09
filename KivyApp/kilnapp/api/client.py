@@ -65,10 +65,12 @@ class KilnApiClient:
             h["X-Kiln-Key"] = self.config.api_key
         return h
 
-    def _get(
+    def _request(
         self,
+        method: str,
         path: str,
         *,
+        json: Any = None,
         base_url: Optional[str] = None,
         timeout: Optional[float] = None,
         auth: bool = True,
@@ -77,9 +79,11 @@ class KilnApiClient:
         if not url.startswith("http"):
             raise ApiError("no base url configured")
         try:
-            resp = requests.get(
+            resp = requests.request(
+                method,
                 url,
                 headers=self._headers(auth),
+                json=json,
                 timeout=timeout or self.config.timeout,
             )
         except requests.Timeout as e:
@@ -90,11 +94,34 @@ class KilnApiClient:
         if resp.status_code == 401:
             raise AuthError("unauthorized (HTTP 401)")
         if resp.status_code >= 400:
-            raise ApiError(f"HTTP {resp.status_code}: {resp.text[:200]}")
+            # Try to surface the server's error message if it's JSON
+            body = resp.text or ""
+            try:
+                data = resp.json()
+                if isinstance(data, dict):
+                    body = data.get("error") or data.get("message") or str(data)
+            except ValueError:
+                pass
+            raise ApiError(f"HTTP {resp.status_code}: {body[:200]}")
+        if not resp.text:
+            return None
         try:
             return resp.json()
         except ValueError as e:
             raise ApiError(f"non-JSON response: {e}") from e
+
+    def _get(
+        self,
+        path: str,
+        *,
+        base_url: Optional[str] = None,
+        timeout: Optional[float] = None,
+        auth: bool = True,
+    ) -> Any:
+        return self._request("GET", path, base_url=base_url, timeout=timeout, auth=auth)
+
+    def _post(self, path: str, *, json: Any = None) -> Any:
+        return self._request("POST", path, json=json)
 
     # ---- public endpoints (Phase 2 subset) ---------------------------------
 
@@ -114,6 +141,25 @@ class KilnApiClient:
     def health_current(self) -> Any:
         """GET /health on the currently configured base URL."""
         return self._get("/health", auth=False)
+
+    # ---- run control (Pico AP only - all require auth) --------------------
+
+    def run_start(self, schedule_filename: Optional[str] = None) -> Any:
+        """POST /run/start. Body: {schedule: filename} (omit to use Pico default)."""
+        body: dict = {}
+        if schedule_filename:
+            body["schedule"] = schedule_filename
+        return self._post("/run/start", json=body)
+
+    def run_stop(self, reason: str = "manual") -> Any:
+        """POST /run/stop. Body: {reason: ...}."""
+        return self._post("/run/stop", json={"reason": reason})
+
+    def run_advance(self) -> Any:
+        """POST /run/advance. Bypasses MC% / time checks server-side; the
+        client is expected to gate the button on stage_elapsed_h >= stage_min_h.
+        """
+        return self._post("/run/advance")
 
     # ---- threading helper --------------------------------------------------
 

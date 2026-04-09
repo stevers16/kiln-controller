@@ -22,8 +22,8 @@ class Panel(BoxLayout):
 
     def __init__(self, **kwargs):
         kwargs.setdefault("orientation", "vertical")
-        kwargs.setdefault("padding", (10, 8, 10, 8))
-        kwargs.setdefault("spacing", 4)
+        kwargs.setdefault("padding", (10, 6, 10, 6))
+        kwargs.setdefault("spacing", 2)
         # Default: hug content vertically. Caller can override.
         auto_size = "size_hint_y" not in kwargs and "height" not in kwargs
         if auto_size:
@@ -47,7 +47,7 @@ def small_label(text: str, *, color=None, bold: bool = False, size: str = "12sp"
         font_size=size,
         bold=bold,
         size_hint_y=None,
-        height=18,
+        height=16,
         halign="left",
         valign="middle",
     )
@@ -55,14 +55,14 @@ def small_label(text: str, *, color=None, bold: bool = False, size: str = "12sp"
     return lbl
 
 
-def value_label(text: str, *, color=None, size: str = "18sp") -> Label:
+def value_label(text: str, *, color=None, size: str = "16sp") -> Label:
     lbl = Label(
         text=text,
         color=color or theme.TEXT_PRIMARY,
         font_size=size,
         bold=True,
         size_hint_y=None,
-        height=24,
+        height=20,
         halign="left",
         valign="middle",
     )

@@ -99,7 +99,7 @@ class CirculationFans:
             self._logger.event(
                 "circulation",
                 f"Current out of range after on() - possible fan fault",
-                level="WARN",
+                level="ERROR",
             )
         return ok
 

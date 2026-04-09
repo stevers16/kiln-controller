@@ -430,8 +430,8 @@ user testing and approval after every phase. Plan file:
 | 0 | Environment + hello world (venv, requirements.txt, minimal Kivy App) | Approved |
 | 1 | App skeleton with bottom navigation (5 placeholder tabs) | Approved |
 | 2 | Settings + persistent storage + API client + auto-detect connection | Approved |
-| 3 | Dashboard MVP (read-only from Pico /status) | Awaiting approval |
-| 4 | Dashboard banners + AP-mode action buttons (start/stop/advance) | Not started |
+| 3 | Dashboard MVP (read-only from Pico /status) | Approved |
+| 4 | Dashboard banners + AP-mode action buttons (start/stop/advance) | Awaiting approval |
 | 5 | Alerts screen | Not started |
 | 6 | Runs screen + run detail view | Not started |
 | 7 | History graphs (5 plot tabs) | Not started |
