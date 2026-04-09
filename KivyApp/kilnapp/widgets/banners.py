@@ -145,11 +145,17 @@ class WaterPanBanner(_ColoredBox):
 # ---- fault banner ---------------------------------------------------------
 
 
-class FaultBanner(ButtonBehavior, _ColoredBox):
-    """Red advisory for fault alerts. Tapping invokes `on_tap` callback."""
+class _AlertBanner(ButtonBehavior, _ColoredBox):
+    """Shared base for FaultBanner / NoticeBanner.
 
-    def __init__(self, on_tap: Optional[Callable[[], None]] = None, **kwargs):
-        super().__init__(bg=theme.SEVERITY_ERROR, **kwargs)
+    Shows an UPPERCASE prefix ("FAULT" or "NOTICE"), one or more alert codes,
+    and a "Tap to view alerts" subtitle. Tapping invokes the `on_tap` callback.
+    """
+
+    PREFIX = "ALERT"
+
+    def __init__(self, bg, on_tap: Optional[Callable[[], None]] = None, **kwargs):
+        super().__init__(bg=bg, **kwargs)
         self._on_tap = on_tap
         self._title = _line("", color=(1, 1, 1, 1), size="14sp", bold=True)
         self._subtitle = _line(
@@ -167,7 +173,28 @@ class FaultBanner(ButtonBehavior, _ColoredBox):
         if not alerts:
             self._title.text = ""
             return
-        # Show up to 2 codes joined by " / "
-        head = " / ".join(alerts[:2])
-        more = "" if len(alerts) <= 2 else f" (+{len(alerts) - 2} more)"
-        self._title.text = f"FAULT: {head}{more}"
+        from kilnapp.alerts import humanise
+
+        readable = [humanise(c) for c in alerts]
+        head = " / ".join(readable[:2])
+        more = "" if len(readable) <= 2 else f" (+{len(readable) - 2} more)"
+        self._title.text = f"{self.PREFIX}: {head}{more}"
+
+
+class FaultBanner(_AlertBanner):
+    """Red banner for hardware/firmware faults."""
+
+    PREFIX = "FAULT"
+
+    def __init__(self, on_tap: Optional[Callable[[], None]] = None, **kwargs):
+        super().__init__(bg=theme.SEVERITY_ERROR, on_tap=on_tap, **kwargs)
+
+
+class NoticeBanner(_AlertBanner):
+    """Amber banner for procedural / batch issues."""
+
+    PREFIX = "NOTICE"
+    BG = (0.78, 0.55, 0.10, 1)
+
+    def __init__(self, on_tap: Optional[Callable[[], None]] = None, **kwargs):
+        super().__init__(bg=self.BG, on_tap=on_tap, **kwargs)

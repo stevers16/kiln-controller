@@ -161,6 +161,12 @@ class KilnApiClient:
         """
         return self._post("/run/advance")
 
+    def run_shutdown(self) -> Any:
+        """POST /run/shutdown. Ends cooldown: heater off, fans off, vents
+        closed. 409 if a run is currently active (call run_stop first).
+        """
+        return self._post("/run/shutdown")
+
     # ---- threading helper --------------------------------------------------
 
 

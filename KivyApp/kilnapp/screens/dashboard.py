@@ -34,9 +34,15 @@ from kilnapp.api.autodetect import (
     MODE_OFFLINE,
     MODE_STA,
 )
+from kilnapp.alerts import split_alerts
 from kilnapp.api.client import call_async
 from kilnapp.connection import ConnectionManager
-from kilnapp.widgets.banners import FaultBanner, StageBanner, WaterPanBanner
+from kilnapp.widgets.banners import (
+    FaultBanner,
+    NoticeBanner,
+    StageBanner,
+    WaterPanBanner,
+)
 from kilnapp.widgets.cards import Panel, small_label, value_label
 from kilnapp.widgets.dialog import confirm
 
@@ -115,12 +121,27 @@ def _deadband_color(
     actual: Optional[float],
     target: Optional[float],
     deadband: float,
+    *,
+    cap_only: bool = False,
 ) -> tuple:
-    """Return a colour for the value label based on its distance from target."""
+    """Colour for a sensor value relative to a target.
+
+    Default mode (cap_only=False) treats target as a setpoint: green within
+    +/- deadband, amber outside, red on sensor fault. Used for temperature.
+
+    cap_only=True treats target as a maximum allowable value: green if
+    actual is below target+deadband (anything lower is fine, the kiln is
+    drying ahead of plan), amber if above. Used for lumber RH (RH targets
+    in FPL schedules are upper bounds, not setpoints).
+    """
     if actual is None:
         return theme.SEVERITY_ERROR
     if target is None:
         return theme.TEXT_PRIMARY
+    if cap_only:
+        if actual <= target + deadband:
+            return theme.SEVERITY_OK
+        return theme.SEVERITY_WARN
     if abs(actual - target) <= deadband:
         return theme.SEVERITY_OK
     return theme.SEVERITY_WARN
@@ -184,10 +205,11 @@ class DashboardScreen(Screen):
         self.stage_banner = StageBanner()
         content.add_widget(self.stage_banner)
 
-        # Fault / water-pan banner slot - exactly one (or none) of these
-        # is added to `content` at a time. Track current widget so we can
-        # remove and replace it cleanly.
+        # Advisory banner slot - exactly one (or none) of fault / notice /
+        # water-pan is added to `content` at a time. Display priority:
+        # fault > notice > water-pan.
         self.fault_banner = FaultBanner(on_tap=self._goto_alerts)
+        self.notice_banner = NoticeBanner(on_tap=self._goto_alerts)
         self.water_pan_banner = WaterPanBanner()
         self._current_advisory = None  # widget currently in `content`
         self._content = content  # so _set_advisory can manipulate it
@@ -357,12 +379,17 @@ class DashboardScreen(Screen):
         else:
             self.stage_banner.show_idle()
 
-        # Fault / water pan banner (fault wins)
+        # Advisory banner: fault > notice > water-pan. INFO-tier codes
+        # (stage_advance, equalizing_start, ...) are silently filtered out.
         active_alerts = data.get("active_alerts") or []
+        faults, notices = split_alerts(active_alerts)
         stage_type = (data.get("stage_type") or "").lower()
-        if active_alerts:
-            self.fault_banner.set_alerts(active_alerts)
+        if faults:
+            self.fault_banner.set_alerts(faults)
             self._set_advisory(self.fault_banner)
+        elif notices:
+            self.notice_banner.set_alerts(notices)
+            self._set_advisory(self.notice_banner)
         elif run_active and stage_type in (EQUALIZING, CONDITIONING):
             self._set_advisory(self.water_pan_banner)
         else:
@@ -381,8 +408,10 @@ class DashboardScreen(Screen):
             self.lumber_widgets["temp_value"].color = _deadband_color(
                 temp_l, target_temp, TEMP_DEADBAND_C
             )
+            # RH targets are upper bounds, not setpoints - anything at or
+            # below target is fine.
             self.lumber_widgets["rh_value"].color = _deadband_color(
-                rh_l, target_rh, RH_DEADBAND_PCT
+                rh_l, target_rh, RH_DEADBAND_PCT, cap_only=True
             )
         else:
             # No targets while idle - just signal sensor health
@@ -497,17 +526,22 @@ class DashboardScreen(Screen):
         return self._current_mode in (MODE_DIRECT, MODE_STA)
 
     def _refresh_action_row(self) -> None:
-        """Rebuild the action button row based on current mode + run state."""
+        """Rebuild the action button row based on current mode + run state.
+
+        Button matrix (Direct/STA mode only - row hidden in Cottage):
+        - run_active                    : Stop Run [+ Advance Stage if past min]
+        - cooldown && not run_active    : Shutdown
+        - idle (neither)                : Start Run
+        Refresh is always present and pinned to the right.
+        """
         self.actions_row.clear_widgets()
         self.actions_row.height = 38
 
         data = self._last_data or {}
         run_active = bool(data.get("run_active"))
+        cooldown = bool(data.get("cooldown"))
         direct = self._is_direct_mode()
 
-        # Run-control buttons only in Direct/STA mode (the only mode that
-        # owns the Pico). In Cottage/Offline the buttons are hidden so we
-        # never silently send a control to the Pi4 daemon.
         if direct:
             if run_active:
                 stop_btn = self._action_button("Stop Run", danger=True)
@@ -523,6 +557,10 @@ class DashboardScreen(Screen):
                     adv_btn = self._action_button("Advance Stage")
                     adv_btn.bind(on_release=lambda _b: self._on_advance_pressed())
                     self.actions_row.add_widget(adv_btn)
+            elif cooldown:
+                shutdown_btn = self._action_button("Shutdown", danger=True)
+                shutdown_btn.bind(on_release=lambda _b: self._on_shutdown_pressed())
+                self.actions_row.add_widget(shutdown_btn)
             else:
                 start_btn = self._action_button("Start Run")
                 start_btn.bind(on_release=lambda _b: self._on_start_pressed())
@@ -573,6 +611,16 @@ class DashboardScreen(Screen):
             confirm_text="Advance",
         )
 
+    def _on_shutdown_pressed(self) -> None:
+        confirm(
+            "Shutdown Kiln",
+            "End cooldown and put the kiln fully off? "
+            "Heater off, fans off, vents closed.",
+            on_confirm=self._do_shutdown,
+            confirm_text="Shutdown",
+            danger=True,
+        )
+
     def _do_stop(self) -> None:
         self._do_action(
             lambda: self.connection.client.run_stop("manual"),
@@ -583,6 +631,12 @@ class DashboardScreen(Screen):
         self._do_action(
             lambda: self.connection.client.run_advance(),
             success_msg="Stage advanced.",
+        )
+
+    def _do_shutdown(self) -> None:
+        self._do_action(
+            lambda: self.connection.client.run_shutdown(),
+            success_msg="Kiln shut down.",
         )
 
     def _do_action(self, func, success_msg: str) -> None:

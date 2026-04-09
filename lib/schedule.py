@@ -190,6 +190,28 @@ class KilnSchedule:
         if self._logger:
             self._logger.end_run()
 
+    def shutdown(self):
+        """End cooldown and put the kiln to fully off.
+
+        Heater off, exhaust off, circulation off, vents closed. Clears the
+        cooldown flag so the kiln returns to idle. Safe to call from any
+        state - if no run is active and not in cooldown, it just confirms
+        the safe state.
+
+        Raises RuntimeError if a run is currently active (use stop() first).
+        """
+        if self._running:
+            raise RuntimeError("Cannot shutdown while a run is active")
+
+        self._heater.off()
+        self._exhaust.off()
+        self._circulation.off()
+        self._vents.close()
+        self._cooldown = False
+        self._vent_reason = None
+
+        self._log_event("Shutdown - kiln idle")
+
     def advance(self):
         """
         Manually advance to the next stage, bypassing time and MC% checks.

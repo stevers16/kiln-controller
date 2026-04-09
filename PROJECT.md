@@ -460,3 +460,33 @@ In rough priority order:
 
 1. **`kiln_server/` Pi4 daemon** -- LoRa RX, SQLite storage, REST API, ntfy.sh alerts
 2. **Kivy app** -- in progress, see "KivyApp/" section above
+3. Implement the error_checking_spec.md
+4. **Update `Specs/lora_telemetry_spec.md`** to include the `fault_details`
+   field with severity tier (per `error_checking_spec.md` Shape A). Then
+   mirror the new fields in the planned Pi4 daemon spec so cottage-mode
+   users see the same fault info as direct-mode users.
+
+## Known firmware bugs
+
+- **LoRa telemetry packet length (FIXED in main.py).** `_send_lora_telemetry`
+  was building JSON via MicroPython's `json.dumps`, which serialises floats
+  at full IEEE754 precision (21.1 -> 21.100000381469727) and adds whitespace
+  after every separator. With 6 float fields the packet hit 302 bytes vs.
+  the SX1278 255-byte FIFO. Fix: hand-built compact JSON with floats
+  rounded to 1 dp, stage sent as integer index instead of name, field
+  names aligned to /status (rh_*, not humidity_*). Typical packet now
+  ~225 bytes. Wire format change: when the Pi4 daemon spec is written it
+  must consume `stage_idx` (int) instead of `stage` (string) and
+  `rh_lumber` / `rh_intake` instead of `humidity_lumber` /
+  `humidity_intake`.
+- **`lora.send_alert()` may have the same float-precision issue** if any
+  alert message ever contains numeric data. Today most alerts pass plain
+  short strings so this hasn't been observed, but the same fix pattern
+  (hand-built compact JSON) should be applied for safety. Lower priority
+  than the telemetry bug since it hasn't fired yet.
+- **Schedule emits informational codes through the same channel as
+  faults.** `_last_alert_ts` mixes lifecycle codes (`stage_advance`,
+  `equalizing_start`, `conditioning_start`, `run_complete`) with real
+  fault codes; the Kivy app classifies these client-side as a stopgap.
+  See `Specs/error_checking_spec.md` "Three-tier alert model" for the
+  permanent fix.

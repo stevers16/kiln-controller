@@ -65,6 +65,86 @@ The Kivy dashboard's fault banner is wired to `active_alerts`, so the gap is:
 
 ---
 
+## Three-tier alert model
+
+Not every interesting event is a "fault." A drying stage that ran out of
+time without hitting its MC target is a real concern that the operator must
+see, but no hardware is broken - the kiln is healthy and the *batch* may
+not be. Treating that the same way as "the circulation fans aren't
+spinning" trains the operator to ignore the red banner.
+
+Three tiers, each with its own UI treatment:
+
+| Tier | Examples | What it means | Dashboard treatment |
+|---|---|---|---|
+| **FAULT** | `CIRC_FAN_FAULT`, `SENSOR_LUMBER_FAIL`, `SD_WRITE_FAIL`, `HEATER_TIMEOUT`, `LORA_FAIL` | Hardware/firmware misbehaving. Operator may need to inspect or fix the kiln. | Red banner. Always elevated. |
+| **NOTICE** | `STAGE_GOAL_NOT_MET`, `WATER_PAN_REMINDER` | Procedural / batch issue. The kiln is healthy; the schedule needs the operator's attention. | Amber banner. Elevated but distinct from a hardware fault. |
+| **INFO** | `stage_advance`, `equalizing_start`, `conditioning_start`, `run_complete` | Lifecycle log entry. Useful in the audit trail; should never interrupt the operator. | No banner on the dashboard. Visible on the Alerts screen only. |
+
+### Today's gap
+
+The firmware does not currently distinguish these tiers. Every code that
+flows through `schedule._last_alert_ts` is treated identically, and
+`/status` returns one undifferentiated `active_alerts: list[str]` that
+includes informational lifecycle events alongside genuine faults.
+
+The Kivy app currently works around this with a hardcoded classification
+table in `kilnapp/alerts.py` that maps each known code to a tier. This is
+a stopgap. The Kivy table will drift out of sync with the firmware as new
+alert codes are added.
+
+### Firmware tagging requirement
+
+Every alert / fault code emitted by the firmware MUST declare its tier at
+the source. Two acceptable shapes:
+
+**Shape A: severity field on each alert.** `_status_cache["fault_details"]`
+becomes a list of `{code, source, message, tier}` dicts where `tier` is
+one of `"fault"`, `"notice"`, `"info"`. The Kivy app classifies by reading
+`tier` directly. `active_alerts` continues as a flat list of codes for
+backwards compatibility but is augmented by `fault_details`.
+
+**Shape B: per-tier arrays.** `/status` returns three explicit arrays:
+`faults: list[str]`, `notices: list[str]`, `infos: list[str]`. Simple to
+consume but breaks the existing `active_alerts` field. Pi4 daemon and
+LoRa packet must be updated in lockstep.
+
+**Recommendation: Shape A.** It is additive (no client breakage), it
+matches the existing `fault_details` field this spec already proposes, and
+it lets a single code change tier in the future without a flag day.
+
+### Per-module tier assignment
+
+The migration plan section lower in this spec must be updated so each
+module's `fault_code` is accompanied by an explicit tier. Modules
+implementing the fault contract should expose:
+
+```python
+class SomeModule:
+    fault: bool
+    fault_code: Optional[str]
+    fault_message: Optional[str]
+    fault_tier: str  # "fault" | "notice" | "info" - default "fault"
+    fault_last_checked_ms: Optional[int]
+```
+
+Hardware modules (circulation, exhaust, vents, sensors, moisture, current,
+lora, sdcard, logger, display) all default to `fault_tier = "fault"` -
+their entire purpose is to detect hardware problems, so anything they
+flag is hardware. The schedule module is the only place that emits NOTICE
+codes (`STAGE_GOAL_NOT_MET`, `WATER_PAN_REMINDER`) and the only place
+that emits INFO codes (`stage_advance`, etc.). Schedule alerts should
+carry the tier explicitly when they are recorded in `_last_alert_ts`.
+
+### Acceptance criterion (additional)
+
+Once the firmware tags severity, the Kivy app should drop the
+`FAULT_CODES` / `NOTICE_CODES` tables in `kilnapp/alerts.py` and read
+`tier` from `fault_details`. The hardcoded tables remain only as a
+backwards-compatibility fallback for older firmware.
+
+---
+
 ## The rule we want to satisfy
 
 > **Anything that causes a unit test to fail should also be checked at
@@ -277,7 +357,7 @@ Done in this order so each step is independently testable on the bench:
 7. **Update the aggregator in `main.py`** to walk all modules.
 
 8. **Update `Specs/lora_telemetry_spec.md`** to add `fault_details` to
-   the LoRa telemetry packet so cottage-mode users see the same info.
+   the LoRa telemetry packet so cottage-mode users see the same info.  Add a ToDo in PROJECT.md to implement the updated telemetry spec and for the Pi4 daemon spec to mirror the new fields.
 
 9. **Update the Kivy app**:
    - Phase 5 Alerts screen will consume `fault_details`.

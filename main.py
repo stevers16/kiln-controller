@@ -794,6 +794,8 @@ async def _route(method, path, query, body, writer):
         return await handle_run_stop(body, writer)
     if method == "POST" and path == "/run/advance":
         return await handle_run_advance(writer)
+    if method == "POST" and path == "/run/shutdown":
+        return await handle_run_shutdown(writer)
     if method == "POST" and path == "/test/run":
         return await handle_test_run(writer)
     if method == "GET" and path == "/test/status":
@@ -1537,6 +1539,24 @@ async def handle_run_advance(writer):
         await send_error(writer, str(e), 409)
 
 
+async def handle_run_shutdown(writer):
+    """End cooldown and put the kiln fully idle: heater off, fans off,
+    vents closed, cooldown flag cleared. 409 if a run is currently active
+    (caller should /run/stop first).
+    """
+    if schedule is None:
+        await send_error(writer, "Schedule controller unavailable", 503)
+        return
+    try:
+        schedule.shutdown()
+    except RuntimeError as e:
+        await send_error(writer, str(e), 409)
+        return
+    ts = time.time() if _rtc_is_set() else 0
+    _update_status_cache()
+    await send_json(writer, {"ok": True, "shutdown_at": ts})
+
+
 async def handle_test_run(writer):
     global _test_running
     if _test_running:
@@ -1988,29 +2008,72 @@ async def control_loop():
         await asyncio.sleep(interval)
 
 
+def _compact_json_value(v):
+    """Render a single Python scalar as compact JSON for the LoRa wire."""
+    if v is None:
+        return "null"
+    if isinstance(v, bool):
+        return "true" if v else "false"
+    if isinstance(v, float):
+        return f"{round(v, 1)}"
+    return str(v)  # int / other numerics
+
+
+def _build_compact_json(d):
+    """Build a JSON object with no whitespace.
+
+    MicroPython's json.dumps(obj) inserts a space after every ':' and ','
+    AND serialises floats at full IEEE754 precision. Both behaviours
+    inflate LoRa telemetry past the SX1278 255-byte FIFO. We hand-build
+    a compact, rounded representation here so we are not at the mercy
+    of the MicroPython port's json implementation.
+    """
+    parts = []
+    for k, v in d.items():
+        if isinstance(v, str):
+            # Strings need JSON escaping; we only emit short, safe strings.
+            parts.append(f'"{k}":"{v}"')
+        else:
+            parts.append(f'"{k}":{_compact_json_value(v)}')
+    return "{" + ",".join(parts) + "}"
+
+
 def _send_lora_telemetry():
-    """Build and send a LoRa telemetry packet matching the Pi4 SQLite schema."""
+    """Build and send a LoRa telemetry packet matching the Pi4 SQLite schema.
+
+    Wire format is optimised for the SX1278 255-byte FIFO limit:
+    - Compact JSON (no whitespace)
+    - Floats rounded to 1 dp
+    - Stage sent as integer index, NOT the human-readable name (Pi4 looks
+      up the name from the schedule on disk)
+    - Field names match /status (rh_*, not humidity_*) so the daemon and
+      the dashboard share one vocabulary
+    Typical packet: ~225 bytes.
+    """
     if lora is None:
         return
     s = _status_cache
+    payload = {
+        "ts": int(s.get("ts", 0) or 0),
+        "stage_idx": s.get("stage_index"),
+        "temp_lumber": s.get("temp_lumber"),
+        "temp_intake": s.get("temp_intake"),
+        "rh_lumber": s.get("rh_lumber"),
+        "rh_intake": s.get("rh_intake"),
+        "mc_channel_1": s.get("mc_channel_1"),
+        "mc_channel_2": s.get("mc_channel_2"),
+        "exhaust_fan_rpm": s.get("exhaust_fan_rpm"),
+        "exhaust_fan_pct": s.get("exhaust_fan_pct", 0),
+        "circ_fan_on": 1 if s.get("circ_fan_on") else 0,
+        "heater_on": 1 if s.get("heater_on") else 0,
+        "vent_open": 1 if s.get("vent_open") else 0,
+    }
     try:
-        lora.send_telemetry(
-            {
-                "ts": s.get("ts", 0),
-                "stage": s.get("stage_name", ""),
-                "temp_lumber": s.get("temp_lumber"),
-                "temp_intake": s.get("temp_intake"),
-                "humidity_lumber": s.get("rh_lumber"),
-                "humidity_intake": s.get("rh_intake"),
-                "mc_channel_1": s.get("mc_channel_1"),
-                "mc_channel_2": s.get("mc_channel_2"),
-                "exhaust_fan_rpm": s.get("exhaust_fan_rpm"),
-                "exhaust_fan_pct": s.get("exhaust_fan_pct", 0),
-                "circ_fan_on": 1 if s.get("circ_fan_on") else 0,
-                "heater_on": 1 if s.get("heater_on") else 0,
-                "vent_open": 1 if s.get("vent_open") else 0,
-            }
-        )
+        wire = _build_compact_json(payload).encode()
+        if len(wire) > 255:
+            print(f"[main] LoRa telemetry too long ({len(wire)} bytes) - dropped")
+            return
+        lora.send(wire)
     except Exception as e:
         print(f"[main] LoRa telemetry error: {e}")
 
