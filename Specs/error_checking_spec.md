@@ -113,6 +113,25 @@ LoRa packet must be updated in lockstep.
 matches the existing `fault_details` field this spec already proposes, and
 it lets a single code change tier in the future without a flag day.
 
+### Existing client-side classification table
+
+The Kivy app's [`KivyApp/kilnapp/alerts.py`](../KivyApp/kilnapp/alerts.py)
+already enumerates every alert code the system is known to emit, organised
+into `FAULT_CODES` and `NOTICE_CODES` frozensets. **That file is the
+authoritative starting list of codes for the firmware author** - rather
+than re-deriving the codes from scratch, copy the two sets and assign each
+code its tier in the firmware module that emits it. Anything not in either
+set is INFO by default.
+
+Codes the Kivy table currently knows about:
+- **FAULT**: `CIRC_FAN_FAULT`, `EXHAUST_FAN_STALL`, `VENT_STALL`,
+  `SENSOR_LUMBER_FAIL`, `SENSOR_INTAKE_FAIL`, `SENSOR_FAILURE`,
+  `MOISTURE_PROBE_FAIL`, `HEATER_TIMEOUT`, `HEATER_FAULT`, `TEMP_OOR`,
+  `RH_OOR`, `TEMP_OUT_OF_RANGE`, `RH_OUT_OF_RANGE`, `OVER_TEMP`,
+  `SD_FAIL`, `SD_WRITE_FAIL`, `LORA_FAIL`, `LORA_TIMEOUT`
+- **NOTICE**: `STAGE_GOAL_NOT_MET`, `STAGE_GOAL_NOT_REACHED`,
+  `WATER_PAN_REMINDER`
+
 ### Per-module tier assignment
 
 The migration plan section lower in this spec must be updated so each
@@ -136,12 +155,43 @@ codes (`STAGE_GOAL_NOT_MET`, `WATER_PAN_REMINDER`) and the only place
 that emits INFO codes (`stage_advance`, etc.). Schedule alerts should
 carry the tier explicitly when they are recorded in `_last_alert_ts`.
 
+### Tier must propagate to /alerts as well
+
+The Kivy Alerts screen ([`KivyApp/kilnapp/screens/alerts.py`](../KivyApp/kilnapp/screens/alerts.py))
+currently calls `kilnapp.alerts.classify(code)` on every row returned by
+`GET /alerts` because the response rows have no tier field. Once the
+firmware tags severity at source, **`/alerts` rows must include a `tier`
+field** (one of `"fault"` / `"notice"` / `"info"`) so the screen can
+drop its client-side classification call.
+
+Concretely the new `/alerts` row shape becomes:
+
+```json
+{
+  "ts": 1712685000,
+  "level": "WARN",
+  "tier": "fault",
+  "source": "circulation",
+  "message": "Current out of range after on() - possible fan fault",
+  "code": "CIRC_FAN_FAULT"
+}
+```
+
+The Pico stores raw event log lines today, so the implementer has a
+choice: either embed the tier in the log line format itself
+(`2026-04-09 14:32:01 [ERROR] [circulation] [FAULT] CIRC_FAN_FAULT: ...`)
+and update `_parse_event_line` in `main.py` to extract it, or keep the
+log format and look up the tier from a static table when serving
+`/alerts`. The former survives a Pico reboot; the latter is simpler.
+
 ### Acceptance criterion (additional)
 
 Once the firmware tags severity, the Kivy app should drop the
-`FAULT_CODES` / `NOTICE_CODES` tables in `kilnapp/alerts.py` and read
-`tier` from `fault_details`. The hardcoded tables remain only as a
-backwards-compatibility fallback for older firmware.
+`FAULT_CODES` / `NOTICE_CODES` tables in `kilnapp/alerts.py` and the
+`classify()` calls in `kilnapp/screens/alerts.py` and read `tier` from
+`fault_details` (on `/status`) and from each `/alerts` row directly. The
+hardcoded tables remain only as a backwards-compatibility fallback for
+older firmware.
 
 ---
 
@@ -237,7 +287,41 @@ The choice is per-module. Be consistent within a module.
 ## The aggregator
 
 `main.py` (or a new `lib/health.py` module) implements the central
-aggregator. Sketch:
+aggregator. It runs inside `_update_status_cache()` so the cache rebuilt
+on every control-loop tick (10s while idle, 30-120s during a run) carries
+fresh fault state.
+
+### Normative requirements
+
+1. **Skip absent modules.** Some `lib/` modules legitimately fail to
+   construct at boot (e.g. SD card not present, INA219 missing, display
+   not wired). The aggregator MUST check `if mod is None: continue` for
+   every module before calling `check_health()`. The current
+   `_status_cache` builder already follows this pattern (`if monitor_12v
+   is not None`, `if circulation else 0`, etc.); the aggregator must
+   match.
+
+2. **Catch exceptions from `check_health()`.** A buggy module must not
+   crash the status cache update. Wrap each `check_health()` call in a
+   try/except and surface the failure as a synthetic
+   `MODULE_CHECK_FAILED` fault tagged with the module name.
+
+3. **Run during idle, not just during runs.** `_update_status_cache()`
+   has an "idle direct reads" block (added recently to keep
+   sensor / moisture values fresh on the dashboard when no run is
+   active). The aggregator MUST run inside that block too, in both the
+   run-active and idle code paths. Otherwise faults won't appear on the
+   Kivy dashboard until the next run starts - which defeats the whole
+   point for the "is the kiln OK before I start a run" check.
+
+4. **Cheap calls only.** `check_health()` runs every cache update, so
+   it must not perform any expensive operation: no I2C reads on every
+   call, no SD writes, no SPI transactions just to ask "are you OK".
+   Modules that need active probing should perform it in their own
+   `tick()` method or alongside their normal operations and only
+   re-read cached state from `check_health()`.
+
+### Sketch
 
 ```python
 # In _update_status_cache(), after the existing schedule alert collection:
@@ -291,11 +375,44 @@ _status_cache["fault_details"] = [
 - `active_alerts: list[str]` - already exists, change semantics so it
   contains every fault from every source, not just schedule alerts.
   Backwards-compatible with the Kivy dashboard's existing fault banner.
-- `fault_details: list[{code, source, message}]` - new. Powers the future
-  Alerts screen (Phase 5) with rich per-fault info.
+- `fault_details: list[{code, source, message, tier}]` - new. Powers the
+  Alerts screen (Phase 5, already shipped) and the dashboard's fault
+  banner with rich per-fault info.
 
 Update `Specs/lora_telemetry_spec.md` and the Pi4 daemon to mirror these
 field changes.
+
+### LoRa wire format constraints
+
+The LoRa telemetry packet has a hard 255-byte cap (SX1278 FIFO) and the
+existing telemetry payload is already ~225 bytes after the recent
+compaction work in `main.py:_build_compact_json` (see `PROJECT.md` "Known
+firmware bugs" for the history). There is **no room** to embed
+`fault_details` as a list of `{code, source, message, tier}` dicts in
+every telemetry packet.
+
+Recommendation: send only a flat list of fault codes over LoRa, and
+serve the rich `fault_details` exclusively over the HTTP `/status`
+endpoint. The Pi4 daemon receives the LoRa codes, looks up the message
+text from a static table (or just displays the code), and exposes the
+fuller `fault_details` shape via its own `/status` endpoint.
+
+```python
+# In _build_compact_json for the LoRa packet, add a single short field:
+#   "faults": ["CIRC_FAN_FAULT", "SD_WRITE_FAIL"]
+# Sized check: each code is ~15-20 chars, list overhead ~5 chars per
+# entry. Three faults adds ~70 bytes. The aggregator MUST cap the LoRa
+# fault list to (e.g.) 5 codes to keep us safely under 255.
+```
+
+Anything new added to the LoRa packet must use the same conventions as
+the existing fields:
+- Hand-built compact JSON via `_compact_json_value` / `_build_compact_json`,
+  not `json.dumps`. MicroPython serialises floats at full IEEE754
+  precision and inserts whitespace after every separator.
+- Short stable field names (`faults`, not `active_fault_codes`).
+- Floats rounded to 1dp.
+- No nested objects per fault. Lists of strings are fine.
 
 ---
 
@@ -393,10 +510,41 @@ A future Claude Code session has finished this work when:
 1. Every module in `lib/` exposes the four required properties and a
    `check_health()` method.
 2. `main.py`'s `_update_status_cache()` calls `check_health()` on every
-   module each tick.
-3. Disconnecting the circulation fan power harness mid-run causes
-   `active_alerts` to contain `"CIRC_FAN_FAULT"` within one tick, and the
-   Kivy dashboard shows a red fault banner.
+   module each tick, in both the run-active and idle code paths.
+3. **Canonical motivating example - circulation fan disconnect.** With
+   the circulation fan power harness physically disconnected (or one of
+   the fan blades blocked so it can't spin), start the `test_quick.json`
+   schedule from the Kivy dashboard. Wait one control-loop tick (~10
+   seconds while idle, the first tick of the run otherwise). The
+   following must all hold:
+
+   `GET /status` returns:
+   ```json
+   {
+     "...": "...",
+     "run_active": true,
+     "active_alerts": ["CIRC_FAN_FAULT"],
+     "fault_details": [
+       {
+         "code": "CIRC_FAN_FAULT",
+         "source": "circulation",
+         "tier": "fault",
+         "message": "Current out of range after on() - possible fan fault"
+       }
+     ]
+   }
+   ```
+
+   `GET /alerts` returns at least one row with
+   `{"level": "ERROR", "tier": "fault", "source": "circulation",
+   "code": "CIRC_FAN_FAULT", ...}`.
+
+   The Kivy dashboard shows a red **FAULT** banner with the text
+   `Circ fan fault` (or `FAULT: Circ fan fault`) within ~10 seconds of
+   the run starting. Tapping the banner navigates to the Alerts tab
+   where the same row is visible with both the **ERROR** log-level
+   badge and the **FAULT** tier badge.
+
 4. Disconnecting one of the SHT31 sensors causes
    `active_alerts` to contain the appropriate sensor code within 3 ticks.
 5. Pulling the SD card mid-run causes `"SD_WRITE_FAIL"` to surface within
@@ -406,7 +554,12 @@ A future Claude Code session has finished this work when:
    the test to inject a known-bad reading.)
 7. `test_modules.py` continues to pass for every module.
 8. `main.py` integration test (run with no faults) shows
-   `active_alerts == []`.
+   `active_alerts == []` and `fault_details == []`.
+9. With the firmware emitting `tier` on every alert, the Kivy app's
+   `kilnapp/alerts.py` `FAULT_CODES` / `NOTICE_CODES` tables can be
+   commented out and the dashboard / Alerts screen still classify
+   correctly. (This validates that the firmware-side tagging is
+   complete and the client fallback is genuinely a fallback.)
 
-When all eight pass, the gap between "fault detected" and "operator sees
+When all nine pass, the gap between "fault detected" and "operator sees
 the fault" is closed.

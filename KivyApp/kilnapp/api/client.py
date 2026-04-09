@@ -142,6 +142,31 @@ class KilnApiClient:
         """GET /health on the currently configured base URL."""
         return self._get("/health", auth=False)
 
+    def alerts(
+        self,
+        *,
+        limit: int = 50,
+        level: Optional[str] = None,
+        run: Optional[str] = None,
+    ) -> Any:
+        """GET /alerts. Returns {alerts: [...], count: int}.
+
+        - level: "WARNING" or "ERROR" (note: filter uses 'WARNING' but
+          alert rows return 'WARN' in their `level` field).
+        - run: run id (e.g. '20260408_1730') or None for the current run.
+        """
+        qs_parts = [f"limit={int(limit)}"]
+        if level:
+            qs_parts.append(f"level={level}")
+        if run:
+            qs_parts.append(f"run={run}")
+        return self._get("/alerts?" + "&".join(qs_parts))
+
+    def runs(self) -> Any:
+        """GET /runs. Returns {runs: [...]} - list of run records derived
+        from SD card log files (no SQLite on the Pico)."""
+        return self._get("/runs")
+
     # ---- run control (Pico AP only - all require auth) --------------------
 
     def run_start(self, schedule_filename: Optional[str] = None) -> Any:

@@ -431,8 +431,8 @@ user testing and approval after every phase. Plan file:
 | 1 | App skeleton with bottom navigation (5 placeholder tabs) | Approved |
 | 2 | Settings + persistent storage + API client + auto-detect connection | Approved |
 | 3 | Dashboard MVP (read-only from Pico /status) | Approved |
-| 4 | Dashboard banners + AP-mode action buttons (start/stop/advance) | Awaiting approval |
-| 5 | Alerts screen | Not started |
+| 4 | Dashboard banners + AP-mode action buttons (start/stop/advance) | Approved |
+| 5 | Alerts screen | Awaiting approval |
 | 6 | Runs screen + run detail view | Not started |
 | 7 | History graphs (5 plot tabs) | Not started |
 | 8 | Start Run flow (AP only) | Not started |
@@ -484,6 +484,13 @@ In rough priority order:
   short strings so this hasn't been observed, but the same fix pattern
   (hand-built compact JSON) should be applied for safety. Lower priority
   than the telemetry bug since it hasn't fired yet.
+- **`/alerts` WARN vs WARNING inconsistency.** `handle_alerts` in
+  `main.py` (line ~1010) accepts the query filter as `level=WARNING` but
+  parses log lines for `[WARN` and returns `"WARN"` in the response
+  rows' `level` field. The Kivy Alerts screen handles both forms, but
+  the firmware should pick one. Recommendation: standardise on `WARN`
+  everywhere (filter, log lines, response) since changing the on-disk
+  log format is the most painful option. Trivial fix once chosen.
 - **Schedule emits informational codes through the same channel as
   faults.** `_last_alert_ts` mixes lifecycle codes (`stage_advance`,
   `equalizing_start`, `conditioning_start`, `run_complete`) with real
