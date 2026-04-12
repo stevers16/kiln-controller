@@ -1,7 +1,7 @@
 # lib/heater.py
 #
 # Controls the 120V backup ceramic PTC heater via a Fotek SSR-25DA
-# solid-state relay. The SSR is driven by GP18 through a 1k ohm
+# solid-state relay. The SSR is driven by GP16 through a 1k ohm
 # current-limiting resistor. Simple on/off driver -- all safety
 # logic (temperature limits, interlocks) lives in the main controller.
 #
@@ -9,7 +9,7 @@
 # (firmware has no involvement with this -- it is a last-resort cutout).
 #
 # Wiring summary:
-#   GP18 -> 1k ohm resistor -> SSR DC input (+)
+#   GP16 -> 1k ohm resistor -> SSR DC input (+)
 #   SSR DC input (-) -> GND
 #   SSR AC output -> thermal fuse -> 120V heater -> neutral
 
@@ -17,7 +17,7 @@ import machine
 import time
 
 # --- Constants ---
-SSR_PIN = 18
+SSR_PIN = 16
 
 
 class Heater:

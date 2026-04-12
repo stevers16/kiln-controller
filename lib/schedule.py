@@ -792,6 +792,7 @@ def test():
             self._on = True
         def off(self):
             self._on = False
+        @property
         def is_on(self):
             return self._on
 
@@ -835,6 +836,7 @@ def test():
             self._open = True
         def close(self):
             self._open = False
+        @property
         def is_open(self):
             return self._open
 

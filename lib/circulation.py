@@ -1,7 +1,7 @@
 # lib/circulation.py
 #
 # Controls 3x 120mm 4-pin PWM circulation fans wired as a group.
-# All PWM wires tied to GP17; FQP30N06L MOSFET gate on GP19 switches
+# All PWM wires tied to GP18; FQP30N06L MOSFET gate on GP19 switches
 # the shared 12V GND side for hard on/off.
 #
 # No tach wire on these fans - RPM is not measurable.
@@ -12,7 +12,7 @@
 #   Fan pin 1 (GND/black)  -> MOSFET drain (shared); MOSFET source -> GND rail
 #   Fan pin 2 (12V/yellow) -> 12V rail (direct)
 #   Fan pin 3 (tach/green) -> not connected (no tach on these fans)
-#   Fan pin 4 (PWM/blue)   -> GP17 via 100ohm series resistor (x3 tied together)
+#   Fan pin 4 (PWM/blue)   -> GP18 via 100ohm series resistor (x3 tied together)
 #   MOSFET gate (GP19)     -> 100ohm gate resistor -> GP19; 10kohm pull-down to GND
 #   Flyback diodes         -> 1N4007 across each fan (cathode to 12V, anode to drain)
 
@@ -20,7 +20,7 @@ import machine
 import time
 
 # --- Constants ---
-PWM_PIN = 17
+PWM_PIN = 18
 GATE_PIN = 19
 PWM_FREQ = 25000  # Hz  - standard 4-pin PC fan spec
 MIN_START_PCT = 20  # Below this most fans stall; clamp on() to this floor

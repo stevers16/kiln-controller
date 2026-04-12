@@ -29,10 +29,10 @@ only. When hardware questions arise, flag them rather than making assumptions.
 |---|---|
 | Controller | Raspberry Pi Pico 2 W (MicroPython) |
 | Temp/RH sensors | 2x SHT31 on I2C (GP0/GP1) |
-| Exhaust fan | Foxconn PVA080G12Q 80mm, PWM GP16, gate GP21, tach GP22 |
-| Circulation fans | 3x Thermalright TL-C12C 120mm, PWM GP17, gate GP19 |
+| Exhaust fan | Foxconn PVA080G12Q 80mm, PWM GP17, gate GP21, tach GP22 |
+| Circulation fans | 3x Thermalright TL-C12C 120mm, PWM GP18, gate GP19 |
 | Vent servos | 2x MG90S, GP14 (intake), GP15 (exhaust) |
-| Backup heater | 500W PTC via Fotek SSR-25DA, GP18 |
+| Backup heater | 500W PTC via Fotek SSR-25DA, GP16 |
 | Moisture probes | 2x voltage divider ADC GP26/GP27, AC excitation GP6/GP7 |
 | Current sensors | 2x INA219 (12V rail 0x40, 5V rail 0x41) on shared I2C |
 | Display | JC035-HVGA-ST-02-V02 3.5" UART, UART1 GP8/GP9 |
@@ -60,9 +60,9 @@ only. When hardware questions arise, flag them rather than making assumptions.
 | GP13 | Pin 17 | SPI1 CS | LoRa Ra-02 NSS (active low) |
 | GP14 | Pin 19 | PWM | MG90S servo - intake vent flap |
 | GP15 | Pin 20 | PWM | MG90S servo - exhaust vent flap |
-| GP16 | Pin 21 | Digital OUT / PWM | Exhaust fan PWM - Foxconn PVA080G12Q 80mm |
-| GP17 | Pin 22 | Digital OUT / PWM | Circulation fan PWM - 3x TL-C12C 120mm |
-| GP18 | Pin 24 | Digital OUT | SSR control - Fotek SSR-25DA -> 120V backup heater |
+| GP16 | Pin 21 | Digital OUT | SSR control - Fotek SSR-25DA -> 120V backup heater |
+| GP17 | Pin 22 | Digital OUT / PWM | Exhaust fan PWM - Foxconn PVA080G12Q 80mm |
+| GP18 | Pin 24 | Digital OUT / PWM | Circulation fan PWM - 3x TL-C12C 120mm |
 | GP19 | Pin 25 | Digital OUT | FQP30N06L MOSFET gate - circulation fan on/off |
 | GP20 | Pin 26 | Digital IN | Display button (active-low, internal pull-up) |
 | GP21 | Pin 27 | Digital OUT | FQP30N06L MOSFET gate - exhaust fan on/off |

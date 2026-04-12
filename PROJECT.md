@@ -61,7 +61,7 @@ via ntfy.sh. No ESP32 or MQTT broker in production system.
 
 Controls 3x 120mm 4-pin PWM circulation fans wired as a group.
 
-- PWM on GP17, MOSFET gate on GP19
+- PWM on GP18, MOSFET gate on GP19
 - `on(speed_percent)` clamps to `MIN_START_PCT=20` to prevent stall
 - `off()` zeros PWM then pulls gate low
 - `tick()` call once per minute to accumulate `hours_on`
@@ -78,7 +78,7 @@ Controls 3x 120mm 4-pin PWM circulation fans wired as a group.
 
 Controls the 80mm Foxconn PVA080G12Q exhaust fan.
 
-- PWM on GP16, MOSFET gate on GP21 (separate pins -- gate is the hard on/off)
+- PWM on GP17, MOSFET gate on GP21 (separate pins -- gate is the hard on/off)
 - Gate initialised LOW at boot before PWM is configured
 - `on(speed_percent)`: drives gate HIGH, then sets PWM duty
 - `off()`: zeros PWM duty first, then pulls gate LOW
@@ -237,7 +237,7 @@ Reads temperature and relative humidity from two SHT31-D sensors over I2C.
 
 Controls the 500W backup ceramic PTC heater via a Fotek SSR-25DA solid-state relay.
 
-- SSR control pin on GP18 (digital output through 1k ohm current-limiting resistor)
+- SSR control pin on GP16 (digital output through 1k ohm current-limiting resistor)
 - Pin driven LOW at construction before anything else -- safe boot state
 - `on()` drives pin HIGH; `off()` drives pin LOW
 - `is_on()` returns software-tracked state (does not read GPIO)

@@ -12,8 +12,8 @@ controller -- heater.py is a simple on/off driver with logging.
 ## Hardware
 
 - **SSR:** Fotek SSR-25DA, DC control input 3-32V, direct Pico GPIO drive
-- **Control pin:** GP18 (digital output)
-- **Current-limiting resistor:** 1k ohm in series between GP18 and SSR control input
+- **Control pin:** GP16 (digital output)
+- **Current-limiting resistor:** 1k ohm in series between GP16 and SSR control input
 - **Safety fuse:** RY85 85degC one-time thermal fuse in series on AC output side
   (hardware-only safety, no firmware involvement)
 - **Load:** 500W ceramic PTC heater
@@ -30,7 +30,7 @@ class Heater:
 
 ### Constructor
 
-- `pin` -- GPIO pin number (caller passes GP18)
+- `pin` -- GPIO pin number (caller passes GP16)
 - `logger` -- optional Logger instance; if None, no logging occurs
 - Initialise the pin as a digital output, driven LOW at construction
 - Log an event on construction: `"Heater initialised, SSR off"`
@@ -53,13 +53,13 @@ def is_on(self) -> bool:
 ## Behaviour
 
 ### on()
-- Drive GP18 HIGH
+- Drive GP16 HIGH
 - Update internal state to reflect heater is on
 - Log event: `"Heater on"` at level INFO
 - No return value
 
 ### off()
-- Drive GP18 LOW
+- Drive GP16 LOW
 - Update internal state to reflect heater is off
 - Log event: `"Heater off"` at level INFO
 - No return value

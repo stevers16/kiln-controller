@@ -54,17 +54,17 @@ monitor_12v = CurrentMonitor(i2c0, 0x40, "12V", logger=logger)
 monitor_5v  = CurrentMonitor(i2c0, 0x41, "5V",  logger=logger)
 
 # 6. Circulation fans
-circulation = CirculationFans(pwm_pin=17, gate_pin=19,
+circulation = CirculationFans(pwm_pin=18, gate_pin=19,
                                current_monitor=monitor_12v, logger=logger)
 
 # 7. Exhaust fan
-exhaust = ExhaustFan(pwm_pin=16, gate_pin=21, tach_pin=22, logger=logger)
+exhaust = ExhaustFan(pwm_pin=17, gate_pin=21, tach_pin=22, logger=logger)
 
 # 8. Vents
 vents = Vents(intake_pin=14, exhaust_pin=15, logger=logger)
 
 # 9. Heater
-heater = Heater(pin=18, logger=logger)
+heater = Heater(pin=16, logger=logger)
 
 # 10. Moisture probes -- load calibration offsets from SD if available
 moisture = MoistureProbe(

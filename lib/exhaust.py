@@ -3,14 +3,14 @@
 # Controls the 80mm exhaust fan (Foxconn PVA080G12Q) via PWM speed control
 # and a dedicated MOSFET gate pin for hard on/off switching.
 #
-# PWM and gate are separate pins - GP16 drives the PWM signal, GP21 drives
+# PWM and gate are separate pins - GP17 drives the PWM signal, GP21 drives
 # the FQP30N06L MOSFET gate. Gate is initialised low (fan off) at boot.
 #
 # Wiring summary:
 #   Fan pin 1 (GND/black)  -> MOSFET drain
 #   Fan pin 2 (12V/yellow) -> 12V rail (direct)
 #   Fan pin 3 (tach/green) -> GP22 via 10kohm pull-up to 3.3V + 104 cap to GND
-#   Fan pin 4 (PWM/blue)   -> GP16 via 100ohm series resistor
+#   Fan pin 4 (PWM/blue)   -> GP17 via 100ohm series resistor
 #   MOSFET gate (GP21)     -> 100ohm gate resistor -> GP21; 10kohm pull-down to GND
 #   MOSFET source          -> 12V rail GND
 #   Flyback diode          -> 1N4007 across fan (cathode to 12V, anode to drain)
@@ -19,7 +19,7 @@ import machine
 import time
 
 # --- Constants ---
-PWM_PIN             = 16
+PWM_PIN             = 17
 GATE_PIN            = 21
 TACH_PIN            = 22
 PWM_FREQ            = 25000
