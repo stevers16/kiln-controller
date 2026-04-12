@@ -96,6 +96,13 @@ class LoRa:
         self._last_payload = None
         self._initialised = False
 
+        # Fault contract
+        self.fault = False
+        self.fault_code = None
+        self.fault_message = None
+        self.fault_tier = "fault"
+        self.fault_last_checked_ms = None
+
         # Hardware pin objects
         self._cs = machine.Pin(cs, machine.Pin.OUT)
         self._cs.high()  # deselect
@@ -121,6 +128,9 @@ class LoRa:
             print(f"LoRa: init failed - {e}")
             if self._logger:
                 self._logger.event("lora", f"Init failed: {e}", level="ERROR")
+            self.fault = True
+            self.fault_code = "LORA_FAIL"
+            self.fault_message = f"Init failed: {e}"
 
     # ------------------------------------------------------------------
     # SPI register access
@@ -285,6 +295,9 @@ class LoRa:
                             f"TX timeout after {elapsed}ms",
                             level="WARNING"
                         )
+                    self.fault = True
+                    self.fault_code = "LORA_TIMEOUT"
+                    self.fault_message = f"TX timeout after {elapsed}ms"
                     return False
                 time.sleep_ms(TX_POLL_MS)
 
@@ -296,6 +309,12 @@ class LoRa:
 
             self._tx_count += 1
             self._last_payload = payload
+
+            # Successful TX clears any prior timeout fault
+            if self.fault and self.fault_code == "LORA_TIMEOUT":
+                self.fault = False
+                self.fault_code = None
+                self.fault_message = None
 
             if self._logger:
                 self._logger.event(
@@ -386,6 +405,12 @@ class LoRa:
         time.sleep_ms(10)
         if self._logger:
             self._logger.event("lora", "Radio reset")
+
+    def check_health(self):
+        """Periodic self-check. Returns True if faulted."""
+        self.fault_last_checked_ms = time.ticks_ms()
+        # Init failure is permanent; TX timeout clears on next success
+        return self.fault
 
     # ------------------------------------------------------------------
     # Properties

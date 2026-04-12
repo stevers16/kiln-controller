@@ -41,6 +41,13 @@ class Vents:
         self._open             = False   # Reflects last commanded position
         self._last_movement_mA = None    # Mid-travel current from most recent move
 
+        # Fault contract
+        self.fault = False
+        self.fault_code = None
+        self.fault_message = None
+        self.fault_tier = "fault"
+        self.fault_last_checked_ms = None
+
         # Close on boot so physical position matches software state
         self.close()
 
@@ -73,6 +80,7 @@ class Vents:
         _move() at mid-travel while the servo is still energized.
 
         Fault threshold: > 600mA indicates a jammed or stalled servo.
+        Latches VENT_STALL fault if out of range.
 
         Returns True/False, or None if no current_monitor is attached or
         no move has been made yet.
@@ -80,6 +88,7 @@ class Vents:
         if self._current_monitor is None or self._last_movement_mA is None:
             return None
         current_mA = self._last_movement_mA
+        self.fault_last_checked_ms = time.ticks_ms()
         in_range = expected_min_mA <= current_mA <= expected_max_mA
         if not in_range:
             msg = (f"Servo current out of range: {current_mA:.1f}mA "
@@ -87,7 +96,23 @@ class Vents:
             if self._logger:
                 self._logger.event("vents", msg, level="WARN")
             print(f"[vents] WARN: {msg}")
+            self.fault = True
+            self.fault_code = "VENT_STALL"
+            self.fault_message = msg
+        else:
+            self.fault = False
+            self.fault_code = None
+            self.fault_message = None
         return in_range
+
+    def check_health(self):
+        """Periodic self-check. Returns True if faulted.
+
+        Does NOT move servos. Returns cached fault state from the
+        most recent verify_position() call.
+        """
+        self.fault_last_checked_ms = time.ticks_ms()
+        return self.fault
 
     # ------------------------------------------------------------------
     # Private helpers
@@ -110,6 +135,8 @@ class Vents:
             time.sleep_ms(TRAVEL_MS - TRAVEL_MS // 2)
             intake_pwm.deinit()
             exhaust_pwm.deinit()
+            # Check mid-travel current and latch fault if out of range
+            self.verify_position(100, 400)
         except Exception as e:
             print(f"[vents] WARNING: _move failed: {e}")
 

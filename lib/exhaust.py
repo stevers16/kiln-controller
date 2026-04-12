@@ -55,6 +55,14 @@ class ExhaustFan:
         self._running = False
         self._speed_pct = 0
 
+        # Fault contract
+        self.fault = False
+        self.fault_code = None
+        self.fault_message = None
+        self.fault_tier = "fault"
+        self.fault_last_checked_ms = None
+        self._last_rpm = None  # cached from verify_running()
+
     def _tach_irq(self, pin):
         self._pulse_count += 1
 
@@ -72,6 +80,9 @@ class ExhaustFan:
         self._speed_pct = speed_percent
         if self._logger:
             self._logger.event("exhaust", f"Fan on at {speed_percent}%")
+        # Verify after spin-up (2s tach sample)
+        time.sleep_ms(2000)
+        self.verify_running()
 
     def off(self):
         """Stop fan - zero PWM duty and pull gate low."""
@@ -79,8 +90,74 @@ class ExhaustFan:
         self._gate.low()
         self._running = False
         self._speed_pct = 0
+        # Clear fault - no longer expecting RPM
+        self.fault = False
+        self.fault_code = None
+        self.fault_message = None
+        self._last_rpm = None
         if self._logger:
             self._logger.event("exhaust", "Fan off")
+
+    def verify_running(self, sample_ms=2000):
+        """Check that the fan is spinning after on().
+
+        Reads RPM via the tach line. Latches EXHAUST_FAN_STALL if RPM == 0.
+        Returns the RPM reading, or None if not running.
+        """
+        if not self._running:
+            return None
+        rpm = self.read_rpm(sample_ms)
+        self._last_rpm = rpm
+        self.fault_last_checked_ms = time.ticks_ms()
+        if rpm == 0:
+            self.fault = True
+            self.fault_code = "EXHAUST_FAN_STALL"
+            self.fault_message = "Exhaust fan RPM is 0 - possible stall"
+            if self._logger:
+                self._logger.event(
+                    "exhaust",
+                    "Fan RPM is 0 after on() - possible stall",
+                    level="ERROR",
+                )
+        elif self.fault and self.fault_code == "EXHAUST_FAN_STALL":
+            self.fault = False
+            self.fault_code = None
+            self.fault_message = None
+        return rpm
+
+    def update_rpm(self, rpm):
+        """Accept an externally-cached RPM reading (from main.py rpm_reader).
+
+        Updates fault state without performing a blocking tach read.
+        Called every 10s by the rpm_reader async task.
+        """
+        self._last_rpm = rpm
+        self.fault_last_checked_ms = time.ticks_ms()
+        if self._running and rpm is not None and rpm == 0:
+            self.fault = True
+            self.fault_code = "EXHAUST_FAN_STALL"
+            self.fault_message = "Exhaust fan RPM is 0 - possible stall"
+            if self._logger:
+                self._logger.event(
+                    "exhaust",
+                    "Fan RPM is 0 while running - possible stall",
+                    level="ERROR",
+                )
+        elif self._running and rpm is not None and rpm > 0:
+            if self.fault and self.fault_code == "EXHAUST_FAN_STALL":
+                self.fault = False
+                self.fault_code = None
+                self.fault_message = None
+
+    def check_health(self):
+        """Periodic self-check. Returns True if faulted.
+
+        Does NOT re-read RPM (tach sample is 1-2s blocking). Returns
+        cached state - kept fresh by update_rpm() from the rpm_reader
+        async task every 10s.
+        """
+        self.fault_last_checked_ms = time.ticks_ms()
+        return self.fault
 
     def set_speed(self, speed_percent):
         """Adjust speed while running. Ignored if fan is off."""

@@ -42,6 +42,7 @@ FAULT_CODES = frozenset(
         "SD_WRITE_FAIL",
         "LORA_FAIL",
         "LORA_TIMEOUT",
+        "DISPLAY_FAIL",
     )
 )
 
@@ -67,7 +68,15 @@ TIER_NOTICE = "notice"
 TIER_INFO = "info"
 
 
-def classify(code: str) -> str:
+def classify(code: str, server_tier: str | None = None) -> str:
+    """Classify an alert code into a tier.
+
+    If the server provides a tier (from fault_details or /alerts rows),
+    use it directly. Otherwise fall back to the local FAULT_CODES /
+    NOTICE_CODES tables for backwards compatibility with older firmware.
+    """
+    if server_tier and server_tier in (TIER_FAULT, TIER_NOTICE, TIER_INFO):
+        return server_tier
     if not code:
         return TIER_INFO
     c = code.lower()
@@ -78,12 +87,27 @@ def classify(code: str) -> str:
     return TIER_INFO
 
 
-def split_alerts(codes: Iterable[str]) -> Tuple[List[str], List[str]]:
-    """Return (faults, notices) lists, preserving order, dropping INFO codes."""
+def split_alerts(
+    codes: Iterable[str],
+    fault_details: Iterable[dict] | None = None,
+) -> Tuple[List[str], List[str]]:
+    """Return (faults, notices) lists, preserving order, dropping INFO codes.
+
+    If fault_details is provided (from /status), use the server-provided
+    tier for each code. Otherwise fall back to the local classification.
+    """
+    # Build a code -> tier lookup from fault_details if available
+    tier_map: dict[str, str] = {}
+    for fd in fault_details or []:
+        c = fd.get("code")
+        t = fd.get("tier")
+        if c and t:
+            tier_map[c] = t
+
     faults: List[str] = []
     notices: List[str] = []
     for code in codes or []:
-        tier = classify(code)
+        tier = classify(code, server_tier=tier_map.get(code))
         if tier == TIER_FAULT:
             faults.append(code)
         elif tier == TIER_NOTICE:

@@ -193,6 +193,20 @@ transmit-only module on a 30-second heartbeat schedule.
 - Fault alerts: immediate on detection, retried up to 3x with 2s spacing
 - SPI1 (LoRa) and SPI0 (SD card) are separate buses -- no contention
 
+**Fault codes in telemetry packet (added by error_checking_spec.md):**
+
+The LoRa telemetry packet now includes an optional `faults` field: a flat
+JSON array of fault code strings (e.g. `"faults":["SD_FAIL","LORA_TIMEOUT"]`).
+Only tier="fault" codes are included (not notices or info). The list is
+trimmed from the back until the total packet fits within the SX1278 255-byte
+FIFO limit. With the existing ~231-byte base payload, typically 0-1 short
+fault codes fit. If no faults are active, the field is omitted entirely.
+
+The rich `fault_details` list (with code, source, message, tier per fault)
+is served exclusively over the Pico HTTP `/status` endpoint. The Pi4 daemon
+receives only the flat code list over LoRa and can look up descriptions
+from a static table or simply display the codes.
+
 **Duty cycle note:** At 30s intervals TX duty cycle is well under 1% -- within the 10%
 limit for 433 MHz ISM use in Canada.
 

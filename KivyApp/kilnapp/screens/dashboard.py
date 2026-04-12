@@ -382,7 +382,8 @@ class DashboardScreen(Screen):
         # Advisory banner: fault > notice > water-pan. INFO-tier codes
         # (stage_advance, equalizing_start, ...) are silently filtered out.
         active_alerts = data.get("active_alerts") or []
-        faults, notices = split_alerts(active_alerts)
+        fault_details = data.get("fault_details") or []
+        faults, notices = split_alerts(active_alerts, fault_details=fault_details)
         stage_type = (data.get("stage_type") or "").lower()
         if faults:
             self.fault_banner.set_alerts(faults)

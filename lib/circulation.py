@@ -50,6 +50,14 @@ class CirculationFans:
         self._speed_pct = 0
         self._minutes_on = 0  # Incremented by tick()
 
+        # Fault contract
+        self.fault = False
+        self.fault_code = None
+        self.fault_message = None
+        self.fault_tier = "fault"
+        self.fault_last_checked_ms = None
+        self._good_reads = 0  # consecutive good reads for N=3 clear
+
     # ------------------------------------------------------------------
     # Public API
     # ------------------------------------------------------------------
@@ -77,6 +85,11 @@ class CirculationFans:
         self._gate.low()
         self._running = False
         self._speed_pct = 0
+        # Clear fault -- no longer expecting current draw
+        self.fault = False
+        self.fault_code = None
+        self.fault_message = None
+        self._good_reads = 0
         if self._logger:
             self._logger.event("circulation", "Fans off")
 
@@ -88,20 +101,44 @@ class CirculationFans:
     def verify_running(self, expected_min_mA=200, expected_max_mA=500):
         """
         Check that the 12V rail current is within the expected range for
-        fans-on operation.  Logs a WARN if out of range.
+        fans-on operation.  Logs ERROR and latches fault if out of range.
 
         Returns True/False, or None if no current_monitor is attached.
         """
         if self._current_monitor is None:
             return None
         ok = self._current_monitor.check_range(expected_min_mA, expected_max_mA)
-        if ok is False and self._logger:
-            self._logger.event(
-                "circulation",
-                f"Current out of range after on() - possible fan fault",
-                level="ERROR",
-            )
+        self.fault_last_checked_ms = time.ticks_ms()
+        if ok is False:
+            self.fault = True
+            self.fault_code = "CIRC_FAN_FAULT"
+            self.fault_message = "Current out of range after on() - possible fan fault"
+            self._good_reads = 0
+            if self._logger:
+                self._logger.event(
+                    "circulation",
+                    "Current out of range after on() - possible fan fault",
+                    level="ERROR",
+                )
+        elif ok is True:
+            self._good_reads += 1
+            if self._good_reads >= 3 and self.fault:
+                self.fault = False
+                self.fault_code = None
+                self.fault_message = None
         return ok
+
+    def check_health(self):
+        """Periodic self-check for the fault aggregator.
+
+        If running, re-reads the 12V rail current via verify_running().
+        If stopped, returns current fault state unchanged.
+        Must stay cheap -- one I2C read at most.
+        """
+        self.fault_last_checked_ms = time.ticks_ms()
+        if self._running:
+            self.verify_running(200, 500)
+        return self.fault
 
     def read_rpm(self):
         """
@@ -240,6 +277,47 @@ def test():
         print(f"  INFO  - 12V idle current after off(): {reading['current_mA']:.1f}mA")
     else:
         print(f"  INFO  - 12V idle current after off(): read failed")
+
+    # --- Fault contract tests ---
+    print("\n  -- Fault contract tests --")
+
+    # --- Test 12: fault attributes exist and default to safe ---
+    fans2 = CirculationFans()
+    passed = (
+        fans2.fault is False
+        and fans2.fault_code is None
+        and fans2.fault_message is None
+        and fans2.fault_tier == "fault"
+        and fans2.fault_last_checked_ms is None
+    )
+    print(f"  {'PASS' if passed else 'FAIL'} - Fault attributes default to safe state")
+    all_passed &= passed
+
+    # --- Test 13: off() clears a latched fault ---
+    fans2.fault = True
+    fans2.fault_code = "CIRC_FAN_FAULT"
+    fans2.fault_message = "test"
+    fans2.off()
+    passed = fans2.fault is False and fans2.fault_code is None
+    print(f"  {'PASS' if passed else 'FAIL'} - off() clears latched fault")
+    all_passed &= passed
+
+    # --- Test 14: check_health() returns False when stopped and no fault ---
+    fans2.off()
+    result = fans2.check_health()
+    passed = result is False and fans2.fault_last_checked_ms is not None
+    print(f"  {'PASS' if passed else 'FAIL'} - check_health() stopped, no fault -> False")
+    all_passed &= passed
+
+    # --- Test 15: verify_running() latches fault on out-of-range (with monitor) ---
+    fans_mon2 = CirculationFans(current_monitor=mon_12v)
+    # Fans off, so current should be near idle -- way below 200mA
+    fans_mon2._running = True  # pretend running so check_health works
+    ok = fans_mon2.verify_running(200, 500)
+    passed = fans_mon2.fault is True and fans_mon2.fault_code == "CIRC_FAN_FAULT"
+    print(f"  {'PASS' if passed else 'FAIL'} - verify_running() latches fault on low current")
+    all_passed &= passed
+    fans_mon2._running = False  # clean up
 
     print(f"\n{'All tests passed!' if all_passed else 'Some tests FAILED'}")
     return all_passed

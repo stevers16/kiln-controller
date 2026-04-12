@@ -32,6 +32,15 @@ class Heater:
         self._pin = machine.Pin(pin, machine.Pin.OUT)
         self._pin.low()  # SSR off at boot -- safe state
         self._on = False
+
+        # Fault contract (no detectable failure modes -- safety is in the
+        # RY85 thermal fuse). Always False; present for aggregator uniformity.
+        self.fault = False
+        self.fault_code = None
+        self.fault_message = None
+        self.fault_tier = "fault"
+        self.fault_last_checked_ms = None
+
         if self._logger:
             self._logger.event("heater", "Heater initialised, SSR off")
 
@@ -52,6 +61,12 @@ class Heater:
         self._on = False
         if self._logger:
             self._logger.event("heater", "Heater off")
+
+    def check_health(self):
+        """No-op self-check. Heater has no detectable failure modes."""
+        import time
+        self.fault_last_checked_ms = time.ticks_ms()
+        return self.fault
 
     def is_on(self):
         """Return True if heater is currently commanded on."""

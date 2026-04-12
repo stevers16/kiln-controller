@@ -10,6 +10,7 @@
 #   GP5  -> CS
 
 import machine
+import time
 import uos
 
 # --- Constants ---
@@ -35,6 +36,26 @@ class SDCard:
         self._cs = cs
         self._mount_point = mount_point
         self._mounted = False
+
+        # Fault contract
+        self.fault = False
+        self.fault_code = None
+        self.fault_message = None
+        self.fault_tier = "fault"
+        self.fault_last_checked_ms = None
+
+    def check_health(self):
+        """Periodic self-check. Returns True if faulted."""
+        self.fault_last_checked_ms = time.ticks_ms()
+        if not self._mounted:
+            self.fault = True
+            self.fault_code = "SD_FAIL"
+            self.fault_message = "SD card not mounted"
+        else:
+            self.fault = False
+            self.fault_code = None
+            self.fault_message = None
+        return self.fault
 
     def mount(self):
         """Mount the SD card. Returns True on success, False on failure."""

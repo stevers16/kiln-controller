@@ -67,6 +67,41 @@ display = None
 lora = None
 schedule = None
 
+# -----------------------------------------------------------------------
+# Alert tier table (authoritative source for severity classification)
+# -----------------------------------------------------------------------
+# Copied from KivyApp/kilnapp/alerts.py FAULT_CODES / NOTICE_CODES.
+# Everything not listed defaults to "info".
+ALERT_CODE_TIERS = {
+    # Hardware / firmware faults (tier = "fault")
+    "CIRC_FAN_FAULT": "fault",
+    "EXHAUST_FAN_STALL": "fault",
+    "VENT_STALL": "fault",
+    "SENSOR_LUMBER_FAIL": "fault",
+    "SENSOR_INTAKE_FAIL": "fault",
+    "SENSOR_FAILURE": "fault",
+    "MOISTURE_PROBE_FAIL": "fault",
+    "HEATER_TIMEOUT": "fault",
+    "HEATER_FAULT": "fault",
+    "TEMP_OOR": "fault",
+    "RH_OOR": "fault",
+    "TEMP_OUT_OF_RANGE": "fault",
+    "RH_OUT_OF_RANGE": "fault",
+    "OVER_TEMP": "fault",
+    "SD_FAIL": "fault",
+    "SD_WRITE_FAIL": "fault",
+    "LORA_FAIL": "fault",
+    "LORA_TIMEOUT": "fault",
+    "CURRENT_12V_FAIL": "fault",
+    "CURRENT_5V_FAIL": "fault",
+    "DISPLAY_FAIL": "fault",
+    "MODULE_CHECK_FAILED": "fault",
+    # Procedural / batch notices (tier = "notice")
+    "STAGE_GOAL_NOT_MET": "notice",
+    "STAGE_GOAL_NOT_REACHED": "notice",
+    "WATER_PAN_REMINDER": "notice",
+}
+
 # Built-in schedule filenames (read-only)
 BUILTIN_SCHEDULES = (
     "maple_05in.json",
@@ -375,6 +410,67 @@ def _uptime_s():
 # -----------------------------------------------------------------------
 
 
+def _collect_module_faults():
+    """Poll all modules for fault state and return aggregated results.
+
+    Returns (codes, details) where:
+    - codes: list of fault code strings (deduped, faults first)
+    - details: list of {code, source, message, tier} dicts
+    """
+    faults = []  # list of (code, source, message, tier)
+    for source, mod in (
+        ("circulation", circulation),
+        ("exhaust", exhaust),
+        ("vents", vents),
+        ("heater", heater),
+        ("sensors", sensors),
+        ("moisture", moisture),
+        ("current_12v", monitor_12v),
+        ("current_5v", monitor_5v),
+        ("lora", lora),
+        ("sdcard", sdcard),
+        ("logger", logger),
+        ("display", display),
+    ):
+        if mod is None:
+            continue
+        try:
+            if hasattr(mod, "check_health"):
+                mod.check_health()
+        except Exception as e:
+            faults.append((
+                "MODULE_CHECK_FAILED",
+                source,
+                str(e)[:80],
+                "fault",
+            ))
+            continue
+        if getattr(mod, "fault", False):
+            code = getattr(mod, "fault_code", None) or "UNKNOWN_FAULT"
+            msg = getattr(mod, "fault_message", None) or ""
+            tier = getattr(mod, "fault_tier", "fault")
+            faults.append((code, source, msg, tier))
+
+    # Build deduped code list and detail list
+    seen = set()
+    codes = []
+    details = []
+    # Sort: faults first, then notices, then info
+    tier_order = {"fault": 0, "notice": 1, "info": 2}
+    faults.sort(key=lambda x: tier_order.get(x[3], 2))
+    for code, src, msg, tier in faults:
+        if code not in seen:
+            seen.add(code)
+            codes.append(code)
+        details.append({
+            "code": code,
+            "source": src,
+            "message": msg,
+            "tier": tier,
+        })
+    return codes, details
+
+
 def _update_status_cache():
     """Build the status cache, tolerating any missing modules."""
     global _status_cache
@@ -468,6 +564,29 @@ def _update_status_cache():
         except Exception:
             pass
 
+    # --- Fault aggregator ---
+    # Poll all modules for fault state and merge with schedule alerts.
+    # Runs in both idle and run-active paths (spec normative req #3).
+    mod_codes, mod_details = _collect_module_faults()
+
+    # Merge schedule-emitted alerts (from _last_alert_ts) into fault_details.
+    # Schedule alerts carry their own codes; look up tier from the static table.
+    for acode in active_alerts:
+        code_upper = acode.upper()
+        tier = ALERT_CODE_TIERS.get(code_upper, ALERT_CODE_TIERS.get(acode, "info"))
+        if code_upper not in (d["code"] for d in mod_details):
+            mod_details.append({
+                "code": code_upper,
+                "source": "schedule",
+                "message": "",
+                "tier": tier,
+            })
+        if code_upper not in mod_codes:
+            mod_codes.append(code_upper)
+
+    # Rebuild active_alerts: combine module faults + schedule alerts, deduped.
+    all_alert_codes = mod_codes
+
     _status_cache = {
         "ts": time.time() if _rtc_is_set() else 0,
         "run_active": s.get("running", False),
@@ -499,7 +618,8 @@ def _update_status_cache():
         "circ_fan_pct": circulation.speed_pct if circulation else 0,
         "current_12v_ma": cur_12v,
         "current_5v_ma": cur_5v,
-        "active_alerts": active_alerts,
+        "active_alerts": all_alert_codes,
+        "fault_details": mod_details,
         "degraded_modules": _missing_modules(),
     }
 
@@ -985,41 +1105,57 @@ async def handle_history(query, writer):
 
 
 async def handle_alerts(query, writer):
-    if not sdcard.is_mounted():
-        await send_error(writer, "SD card not mounted", 503)
-        return
-
     limit = int(query.get("limit", "50"))
     level_filter = query.get("level", "")
     run_id = query.get("run", "")
 
-    event_file = _find_event_file(run_id)
-    if event_file is None:
-        await send_json(writer, {"alerts": [], "count": 0})
-        return
+    event_file = None
+    if sdcard is not None and sdcard.is_mounted():
+        event_file = _find_event_file(run_id)
 
-    path = f"{sdcard.mount_point}/{event_file}"
     alerts = []
-    try:
-        with open(path, "r") as f:
-            for line in f:
-                line = line.strip()
-                if not line:
-                    continue
-                # Only include WARNING and ERROR lines
-                if "[WARN" not in line and "[ERROR" not in line:
-                    continue
-                if level_filter:
-                    if level_filter == "WARNING" and "[WARN" not in line:
+    if event_file:
+        path = f"{sdcard.mount_point}/{event_file}"
+        try:
+            with open(path, "r") as f:
+                for line in f:
+                    line = line.strip()
+                    if not line:
                         continue
-                    if level_filter == "ERROR" and "[ERROR" not in line:
+                    # Only include WARNING and ERROR lines
+                    if "[WARN" not in line and "[ERROR" not in line:
                         continue
+                    if level_filter:
+                        if level_filter == "WARNING" and "[WARN" not in line:
+                            continue
+                        if level_filter == "ERROR" and "[ERROR" not in line:
+                            continue
 
-                alert = _parse_event_line(line)
-                if alert:
-                    alerts.append(alert)
-    except Exception:
-        pass
+                    alert = _parse_event_line(line)
+                    if alert:
+                        alerts.append(alert)
+        except Exception:
+            pass
+
+    # Inject any currently active faults from the status cache that are
+    # not already in the event log. This covers faults detected by
+    # check_health() after the event file was closed (or between ticks).
+    existing_codes = {a.get("code") for a in alerts if a.get("code")}
+    for fd in _status_cache.get("fault_details", []):
+        code = fd.get("code")
+        if code and code not in existing_codes:
+            tier = fd.get("tier", "info")
+            # Only inject faults and notices (not info lifecycle events)
+            if tier in ("fault", "notice"):
+                alerts.append({
+                    "ts": _status_cache.get("ts", 0),
+                    "level": "ERROR" if tier == "fault" else "WARN",
+                    "tier": tier,
+                    "source": fd.get("source", ""),
+                    "message": fd.get("message", ""),
+                    "code": code,
+                })
+                existing_codes.add(code)
 
     # Return newest first, up to limit
     alerts.reverse()
@@ -1057,9 +1193,15 @@ def _parse_event_line(line):
         except Exception:
             pass
 
+        # Look up tier from code; case-insensitive match against ALERT_CODE_TIERS
+        tier = "info"
+        if code:
+            tier = ALERT_CODE_TIERS.get(code.upper(), ALERT_CODE_TIERS.get(code, "info"))
+
         return {
             "ts": ts,
             "level": level,
+            "tier": tier,
             "source": source,
             "message": message,
             "code": code,
@@ -1977,14 +2119,25 @@ async def _run_single_test(tid):
 
 
 async def control_loop():
+    """Main control loop. Runs every 10s for responsive fault detection.
+
+    The original loop slept 30-120s (matching the schedule's tick cadence),
+    which meant faults took minutes to detect and clear. Running at 10s is
+    safe -- schedule.tick() control logic (heater deadband, vent decisions,
+    stage advance) is idempotent and benefits from faster responsiveness.
+    LoRa telemetry is rate-limited to avoid flooding the link.
+    """
+    _last_lora_ms = time.ticks_ms()
     while True:
         try:
             if schedule is not None:
                 schedule.tick()
+                # Rate-limit LoRa telemetry to every 30s minimum
+                if (lora is not None and schedule._running
+                        and time.ticks_diff(time.ticks_ms(), _last_lora_ms) >= 30_000):
+                    _send_lora_telemetry()
+                    _last_lora_ms = time.ticks_ms()
             _update_status_cache()
-            # Send telemetry via LoRa every tick when a run is active
-            if schedule is not None and lora is not None and schedule._running:
-                _send_lora_telemetry()
         except Exception as e:
             print(f"[main] control loop error: {e}")
             if logger is not None:
@@ -1992,20 +2145,7 @@ async def control_loop():
                     logger.event("main", f"Control loop error: {e}", level="ERROR")
                 except Exception:
                     pass
-        # Pick the next sleep interval:
-        # - During an active run: schedule.tick_interval_s (30 s venting,
-        #   120 s otherwise) - matches the controller's needs.
-        # - When idle (no run active): 10 s, so the status cache (and thus
-        #   the Kivy dashboard) reflects fresh sensor / moisture / current
-        #   readings without 2-minute lag at idle.
-        # - Schedule unavailable: 60 s fallback.
-        if schedule is None:
-            interval = 60
-        elif schedule._running:
-            interval = schedule.tick_interval_s
-        else:
-            interval = 10
-        await asyncio.sleep(interval)
+        await asyncio.sleep(10)
 
 
 def _compact_json_value(v):
@@ -2033,6 +2173,10 @@ def _build_compact_json(d):
         if isinstance(v, str):
             # Strings need JSON escaping; we only emit short, safe strings.
             parts.append(f'"{k}":"{v}"')
+        elif isinstance(v, (list, tuple)):
+            # List of strings (used for faults field)
+            items = ",".join(f'"{s}"' for s in v)
+            parts.append(f'"{k}":[{items}]')
         else:
             parts.append(f'"{k}":{_compact_json_value(v)}')
     return "{" + ",".join(parts) + "}"
@@ -2068,8 +2212,28 @@ def _send_lora_telemetry():
         "heater_on": 1 if s.get("heater_on") else 0,
         "vent_open": 1 if s.get("vent_open") else 0,
     }
+    # Build base packet first, then fit as many fault codes as space allows.
+    # The base telemetry is ~225 bytes; the SX1278 FIFO limit is 255.
     try:
-        wire = _build_compact_json(payload).encode()
+        base_wire = _build_compact_json(payload)
+        fault_codes = [
+            d["code"] for d in s.get("fault_details", [])
+            if d.get("tier") == "fault"
+        ][:5]
+        if fault_codes:
+            # Try adding faults, trimming until it fits
+            while fault_codes:
+                payload["faults"] = fault_codes
+                wire = _build_compact_json(payload).encode()
+                if len(wire) <= 255:
+                    break
+                fault_codes.pop()
+            else:
+                # Even one code didn't fit -- send without faults
+                del payload["faults"]
+                wire = base_wire.encode()
+        else:
+            wire = base_wire.encode()
         if len(wire) > 255:
             print(f"[main] LoRa telemetry too long ({len(wire)} bytes) - dropped")
             return
@@ -2121,6 +2285,10 @@ async def rpm_reader():
                 _cached_rpm = 0
         except Exception:
             _cached_rpm = None
+        # Feed the cached RPM into the exhaust module's fault state
+        # so mid-run stalls are detected without a blocking re-read
+        # in check_health().
+        exhaust.update_rpm(_cached_rpm)
         await asyncio.sleep(10)
 
 

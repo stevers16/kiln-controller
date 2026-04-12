@@ -154,6 +154,15 @@ class MoistureProbe:
         self._cal_offset_1 = 0.0
         self._cal_offset_2 = 0.0
 
+        # Fault contract
+        self.fault = False
+        self.fault_code = None
+        self.fault_message = None
+        self.fault_tier = "fault"
+        self.fault_last_checked_ms = None
+        self._fail_ch1 = 0
+        self._fail_ch2 = 0
+
         if self._logger:
             self._logger.event(
                 "moisture", f"Moisture probe init -- ch1={species_1} ch2={species_2}"
@@ -281,12 +290,47 @@ class MoistureProbe:
                     level="WARNING",
                 )
 
+        # Track consecutive None readings per channel (N=3 to latch)
+        if ch1_mc is None:
+            self._fail_ch1 += 1
+        else:
+            self._fail_ch1 = 0
+        if ch2_mc is None:
+            self._fail_ch2 += 1
+        else:
+            self._fail_ch2 = 0
+
+        # Update fault state
+        if self._fail_ch1 >= 3 or self._fail_ch2 >= 3:
+            self.fault = True
+            self.fault_code = "MOISTURE_PROBE_FAIL"
+            which = []
+            if self._fail_ch1 >= 3:
+                which.append("ch1")
+            if self._fail_ch2 >= 3:
+                which.append("ch2")
+            self.fault_message = f"Probe failing: {', '.join(which)}"
+        else:
+            self.fault = False
+            self.fault_code = None
+            self.fault_message = None
+
         return {
             "ch1_mc_pct": ch1_mc,
             "ch2_mc_pct": ch2_mc,
             "ch1_ohms": ch1_ohms,
             "ch2_ohms": ch2_ohms,
         }
+
+    def check_health(self):
+        """Periodic self-check. Performs a fresh read to update fault state.
+
+        Each channel read takes ~30ms (AC excitation + ADC samples).
+        Cheap enough to run every status cache update (10-120s interval).
+        """
+        self.fault_last_checked_ms = time.ticks_ms()
+        self.read()
+        return self.fault
 
     def read_with_temp_correction(self, temp_c):
         """

@@ -13,7 +13,12 @@ state of the software side of this project.
 Firmware at integration stage. Twelve modules exist in `lib/`. `main.py` and
 `config.py` are implemented -- entry point wires all modules together, starts
 WiFi AP, runs asyncio HTTP REST API server (24 endpoints), control loop,
-display pages, LoRa heartbeat, and system test suite. The logging stack is
+display pages, LoRa heartbeat, and system test suite. Error checking and
+fault surfacing (`Specs/error_checking_spec.md`) is implemented: every module
+exposes a uniform fault contract, `main.py` aggregates faults from all modules
+via `_collect_module_faults()`, and `/status` returns `active_alerts` + 
+`fault_details` (with three-tier severity: fault/notice/info). The control
+loop runs every 10s for responsive fault detection and clearing. The logging stack is
 complete and fully tested on hardware. Vent servos are working. Current
 monitoring (INA219) is implemented and basic hardware test confirmed passing.
 SHT31 dual sensor module is implemented and tested on hardware (refactored to
@@ -384,10 +389,11 @@ Entry point wiring all `lib/` modules together. Runs at boot.
 - Instantiates all 12 hardware modules in safe order with shared I2C bus
 - Starts WiFi AP (SSID/password from config.py)
 - Runs asyncio HTTP server on port 80 with 24 REST API endpoints
-- Control loop: `schedule.tick()` + status cache update at `tick_interval_s`; sends full LoRa telemetry packet every tick when a run is active (field names match Pi4 SQLite schema)
+- Control loop: runs every 10s; calls `schedule.tick()` + `_update_status_cache()` + fault aggregator each iteration. LoRa telemetry rate-limited to 30s minimum
+- Fault aggregator: `_collect_module_faults()` polls `check_health()` on all 12 modules every tick; `ALERT_CODE_TIERS` dict maps each code to fault/notice/info; `/status` returns `active_alerts` (flat codes) + `fault_details` (list of `{code, source, message, tier}` dicts); `/alerts` injects active faults from status cache alongside SD event log entries
 - Display loop: `display.tick()` every 100ms with 4 registered pages (status, sensors, moisture, system)
 - LoRa heartbeat: sends keepalive telemetry every 5 min when no run is active
-- RPM reader: caches exhaust fan RPM every 10s (avoids blocking 2s tach read in status path)
+- RPM reader: caches exhaust fan RPM every 10s; feeds `exhaust.update_rpm()` for mid-run stall detection
 - System test suite: 18 tests (unit, integration, commissioning) run as async task via POST /test/run
 - Calibration loading from SD card `calibration.json` at boot
 - Fatal exception handler: safe shutdown (heater off, vents open, fans off) then reboot after 5s
@@ -458,13 +464,12 @@ user testing and approval after every phase. Plan file:
 
 In rough priority order:
 
-1. **`kiln_server/` Pi4 daemon** -- LoRa RX, SQLite storage, REST API, ntfy.sh alerts
+1. **`kiln_server/` Pi4 daemon** -- LoRa RX, SQLite storage, REST API, ntfy.sh alerts.
+   The Pi4 daemon must consume the new `faults` field in LoRa telemetry
+   packets (flat list of fault code strings) and expose a `fault_details`
+   list in its own `/status` endpoint so cottage-mode users see the same
+   fault info as direct-mode users.
 2. **Kivy app** -- in progress, see "KivyApp/" section above
-3. Implement the error_checking_spec.md
-4. **Update `Specs/lora_telemetry_spec.md`** to include the `fault_details`
-   field with severity tier (per `error_checking_spec.md` Shape A). Then
-   mirror the new fields in the planned Pi4 daemon spec so cottage-mode
-   users see the same fault info as direct-mode users.
 
 ## Known firmware bugs
 
@@ -491,9 +496,13 @@ In rough priority order:
   the firmware should pick one. Recommendation: standardise on `WARN`
   everywhere (filter, log lines, response) since changing the on-disk
   log format is the most painful option. Trivial fix once chosen.
-- **Schedule emits informational codes through the same channel as
-  faults.** `_last_alert_ts` mixes lifecycle codes (`stage_advance`,
-  `equalizing_start`, `conditioning_start`, `run_complete`) with real
-  fault codes; the Kivy app classifies these client-side as a stopgap.
-  See `Specs/error_checking_spec.md` "Three-tier alert model" for the
-  permanent fix.
+- **Schedule alert/fault mixing (FIXED).** `_last_alert_ts` used to mix
+  lifecycle codes with real fault codes; the Kivy app classified them
+  client-side. Fixed by `error_checking_spec.md` implementation: every
+  module now exposes a fault contract, `main.py` aggregates all faults
+  via `_collect_module_faults()`, and `/status` returns both
+  `active_alerts` (flat code list) and `fault_details` (list of
+  `{code, source, message, tier}` dicts). The three-tier model
+  (`fault`/`notice`/`info`) is tagged at source. The Kivy app reads
+  `tier` from the server when present and falls back to its local
+  `FAULT_CODES`/`NOTICE_CODES` tables for older firmware.

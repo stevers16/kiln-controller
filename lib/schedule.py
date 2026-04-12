@@ -160,12 +160,15 @@ class KilnSchedule:
         self._rh_oor_since = None
         self._last_alert_ts = {}
 
+        # Open per-run log files BEFORE starting hardware so that any
+        # errors logged during on() / verify_running() land in the
+        # event file (not just the system log).
+        if self._logger:
+            self._logger.begin_run()
+
         # Start hardware
         self._circulation.on(CIRC_FAN_SPEED)
         self._vents.close()
-
-        if self._logger:
-            self._logger.begin_run()
 
         name = self._schedule.get("name", "unknown")
         self._log_event(f"Run started: {name}")

@@ -53,7 +53,21 @@ class CurrentMonitor:
         self._source = f"current_{label.replace('V', 'v')}"  # "current_12v" / "current_5v"
         self._ready  = False
 
+        # Fault contract
+        self.fault = False
+        self.fault_code = None
+        self.fault_message = None
+        self.fault_tier = "fault"
+        self.fault_last_checked_ms = None
+
         self._init_device()
+
+        # Latch fault immediately if init failed
+        if not self._ready:
+            code = f"CURRENT_{label.upper()}_FAIL"
+            self.fault = True
+            self.fault_code = code
+            self.fault_message = f"INA219 init failed at 0x{address:02X}"
 
     # ------------------------------------------------------------------
     # Public API
@@ -119,6 +133,25 @@ class CurrentMonitor:
             print(f"[{self._source}] WARN: {msg}")
 
         return in_range
+
+    def check_health(self):
+        """Periodic self-check. Returns True if faulted."""
+        self.fault_last_checked_ms = time.ticks_ms()
+        if not self._ready:
+            # Init failure is already latched
+            return self.fault
+        # Try a read to confirm I2C is still working
+        result = self.read()
+        if result is None:
+            self.fault = True
+            code = f"CURRENT_{self._label.upper()}_FAIL"
+            self.fault_code = code
+            self.fault_message = f"INA219 read failed at 0x{self._addr:02X}"
+        else:
+            self.fault = False
+            self.fault_code = None
+            self.fault_message = None
+        return self.fault
 
     # ------------------------------------------------------------------
     # Private helpers

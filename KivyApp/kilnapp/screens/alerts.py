@@ -120,9 +120,10 @@ class _AlertRow(Panel):
         ts_label.size_hint_x = 1
         header.add_widget(ts_label)
         header.add_widget(_SeverityBadge(alert.get("level", "")))
-        # Tier badge from client-side classification, only when interesting
+        # Tier badge: prefer server-provided tier, fall back to client-side
         code = alert.get("code") or ""
-        tier = classify(code) if code else None
+        server_tier = alert.get("tier")
+        tier = classify(code, server_tier=server_tier) if code else None
         if tier in (TIER_FAULT, TIER_NOTICE):
             header.add_widget(_TierBadge(tier))
         self.add_widget(header)
@@ -287,6 +288,10 @@ class AlertsScreen(Screen):
 
         # Subscribe to connection state and tick periodically
         self.connection.add_listener(self._on_connection_change)
+
+    def on_enter(self, *args):
+        """Refresh immediately when the screen becomes visible."""
+        self.refresh_now()
 
     # ---- connection wiring -------------------------------------------------
 

@@ -112,6 +112,14 @@ class Display:
         self._pages = []  # list of {"name": str, "render_fn": callable}
         self._current_page_idx = 0
 
+        # Fault contract
+        self.fault = False
+        self.fault_code = None
+        self.fault_message = None
+        self.fault_tier = "fault"
+        self.fault_last_checked_ms = None
+        self._uart_timeouts = 0  # consecutive UART timeouts
+
         self.set_orientation(Orientation.LANDSCAPE)
         self.clear()
 
@@ -144,7 +152,28 @@ class Display:
     def _cmd(self, cmd: str, timeout_ms=WAIT_MS) -> str:
         """Send command and wait for OK response."""
         self._send(cmd)
-        return self._wait_ok(timeout_ms)
+        result = self._wait_ok(timeout_ms)
+        if result == "":
+            self._uart_timeouts += 1
+            if self._uart_timeouts >= 5:
+                self.fault = True
+                self.fault_code = "DISPLAY_FAIL"
+                self.fault_message = f"{self._uart_timeouts} consecutive UART timeouts"
+        else:
+            self._uart_timeouts = 0
+            if self.fault and self.fault_code == "DISPLAY_FAIL":
+                self.fault = False
+                self.fault_code = None
+                self.fault_message = None
+        return result
+
+    def check_health(self):
+        """Periodic self-check. Returns True if faulted.
+
+        Does NOT send a UART command. Returns cached fault state.
+        """
+        self.fault_last_checked_ms = time.ticks_ms()
+        return self.fault
 
     @staticmethod
     def _sanitise(text: str) -> str:

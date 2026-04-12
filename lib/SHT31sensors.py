@@ -52,6 +52,18 @@ class SHT31Sensors:
                 print(f"SHT31Sensors: I2C init failed: {e}")
                 raise
 
+        # Fault contract
+        self.fault = False
+        self.fault_code = None
+        self.fault_message = None
+        self.fault_tier = "fault"
+        self.fault_last_checked_ms = None
+        # Per-sensor consecutive failure counters
+        self._fail_lumber = 0
+        self._fail_intake = 0
+        self._fault_lumber = False
+        self._fault_intake = False
+
         # Verify both sensors are present on the bus
         found = self._i2c.scan()
         if ADDR_LUMBER not in found:
@@ -74,9 +86,31 @@ class SHT31Sensors:
         Read both sensors. Returns dict with keys:
             temp_lumber, rh_lumber, temp_intake, rh_intake
         Any sensor that fails returns None for its values.
+        Also tracks consecutive failures for the fault contract.
         """
         lumber = self._read_sensor(ADDR_LUMBER)
         intake = self._read_sensor(ADDR_INTAKE)
+
+        # Track consecutive failures per sensor (N=3 to latch/clear)
+        if lumber is None:
+            self._fail_lumber += 1
+            if self._fail_lumber >= 3:
+                self._fault_lumber = True
+        else:
+            self._fail_lumber = 0
+            if self._fault_lumber:
+                self._fault_lumber = False
+
+        if intake is None:
+            self._fail_intake += 1
+            if self._fail_intake >= 3:
+                self._fault_intake = True
+        else:
+            self._fail_intake = 0
+            if self._fault_intake:
+                self._fault_intake = False
+
+        self._update_fault_state()
 
         result = {
             "temp_lumber": lumber[0] if lumber else None,
@@ -85,6 +119,35 @@ class SHT31Sensors:
             "rh_intake": intake[1] if intake else None,
         }
         return result
+
+    def _update_fault_state(self):
+        """Update the unified fault attributes from per-sensor state."""
+        if self._fault_lumber and self._fault_intake:
+            self.fault = True
+            self.fault_code = "SENSOR_FAILURE"
+            self.fault_message = "Both SHT31 sensors failing"
+        elif self._fault_lumber:
+            self.fault = True
+            self.fault_code = "SENSOR_LUMBER_FAIL"
+            self.fault_message = "SHT31 lumber sensor failing"
+        elif self._fault_intake:
+            self.fault = True
+            self.fault_code = "SENSOR_INTAKE_FAIL"
+            self.fault_message = "SHT31 intake sensor failing"
+        else:
+            self.fault = False
+            self.fault_code = None
+            self.fault_message = None
+
+    def check_health(self):
+        """Periodic self-check. Performs a fresh read to update fault state.
+
+        Each sensor read takes ~15ms (single-shot measurement). This is
+        cheap enough to run every status cache update (10-120s interval).
+        """
+        self.fault_last_checked_ms = time.ticks_ms()
+        self.read()
+        return self.fault
 
     def read_lumber(self):
         """Return (temp_c, rh_pct) for lumber zone sensor, or None on failure."""

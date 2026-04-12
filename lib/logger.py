@@ -39,6 +39,14 @@ class Logger:
         self._event_file = None
         self._data_file = None
         self._run_active = False
+        self._write_failures = 0  # consecutive write failures
+
+        # Fault contract
+        self.fault = False
+        self.fault_code = None
+        self.fault_message = None
+        self.fault_tier = "fault"
+        self.fault_last_checked_ms = None
 
     # ------------------------------------------------------------------
     # Timestamp helpers
@@ -151,6 +159,11 @@ class Logger:
         self._close_run_files()
         self._run_active = False
 
+    def check_health(self):
+        """Periodic self-check. Returns True if faulted."""
+        self.fault_last_checked_ms = time.ticks_ms()
+        return self.fault
+
     def event(self, source, message, level="INFO"):
         """
         Append a timestamped event line to the REPL, the system log,
@@ -167,12 +180,14 @@ class Logger:
         print(line)
 
         # Always write to the persistent system log if open
+        write_ok = True
         if self._system_file:
             try:
                 self._system_file.write(line + "\n")
                 self._system_file.flush()
             except Exception as e:
                 print(f"[logger] WARNING: system log write failed - {e}")
+                write_ok = False
 
         # Also write to the per-run event log if a run is active
         if self._event_file:
@@ -181,6 +196,22 @@ class Logger:
                 self._event_file.flush()
             except Exception as e:
                 print(f"[logger] WARNING: SD write failed - {e}")
+                write_ok = False
+
+        # Track consecutive write failures for fault contract
+        if not write_ok:
+            self._write_failures += 1
+            if self._write_failures >= 3:
+                self.fault = True
+                self.fault_code = "SD_WRITE_FAIL"
+                self.fault_message = f"{self._write_failures} consecutive write failures"
+        else:
+            if self._system_file or self._event_file:
+                self._write_failures = 0
+                if self.fault and self.fault_code == "SD_WRITE_FAIL":
+                    self.fault = False
+                    self.fault_code = None
+                    self.fault_message = None
 
     def data(self, record):
         """
@@ -344,8 +375,9 @@ def test():
     all_passed &= passed
 
     # --- Test 11: begin_run() can be called again ---
-    sd2 = SDCard()
-    logger2 = Logger(sd2)
+    # Reuse the same SDCard instance -- creating a new one would fail
+    # because the mount point /sd is still occupied by the first instance.
+    logger2 = Logger(sd)
     result = logger2.begin_run()
     passed = result is True and logger2.run_active
     logger2.end_run()
