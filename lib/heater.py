@@ -14,6 +14,7 @@
 #   SSR AC output -> thermal fuse -> 120V heater -> neutral
 
 import machine
+import time
 
 # --- Constants ---
 SSR_PIN = 18
@@ -64,12 +65,12 @@ class Heater:
 
     def check_health(self):
         """No-op self-check. Heater has no detectable failure modes."""
-        import time
         self.fault_last_checked_ms = time.ticks_ms()
         return self.fault
 
+    @property
     def is_on(self):
-        """Return True if heater is currently commanded on."""
+        """True if heater is currently commanded on."""
         return self._on
 
 
@@ -80,26 +81,26 @@ def test():
 
     # --- Test 1: Heater initialises off ---
     h = Heater()
-    passed = not h.is_on() and h._pin.value() == 0
+    passed = not h.is_on and h._pin.value() == 0
     print(f"  {'PASS' if passed else 'FAIL'} - Init: is_on()=False, pin LOW")
     all_passed &= passed
 
     # --- Test 2: on() turns heater on ---
     h.on()
-    passed = h.is_on() and h._pin.value() == 1
+    passed = h.is_on and h._pin.value() == 1
     print(f"  {'PASS' if passed else 'FAIL'} - on(): is_on()=True, pin HIGH")
     all_passed &= passed
 
     # --- Test 3: off() turns heater off ---
     h.off()
-    passed = not h.is_on() and h._pin.value() == 0
+    passed = not h.is_on and h._pin.value() == 0
     print(f"  {'PASS' if passed else 'FAIL'} - off(): is_on()=False, pin LOW")
     all_passed &= passed
 
     # --- Test 4: Double on() is safe ---
     h.on()
     h.on()
-    passed = h.is_on() and h._pin.value() == 1
+    passed = h.is_on and h._pin.value() == 1
     print(f"  {'PASS' if passed else 'FAIL'} - Double on(): no error, still on")
     all_passed &= passed
     h.off()
@@ -107,7 +108,7 @@ def test():
     # --- Test 5: Double off() is safe ---
     h.off()
     h.off()
-    passed = not h.is_on() and h._pin.value() == 0
+    passed = not h.is_on and h._pin.value() == 0
     print(f"  {'PASS' if passed else 'FAIL'} - Double off(): no error, still off")
     all_passed &= passed
 
@@ -138,7 +139,7 @@ def test():
     try:
         h3.on()
         h3.off()
-        h3.is_on()
+        h3.is_on
         passed = True
     except Exception as e:
         passed = False

@@ -107,6 +107,20 @@ class ExhaustFan:
         if not self._running:
             return None
         rpm = self.read_rpm(sample_ms)
+        self._apply_rpm_fault(rpm)
+        return rpm
+
+    def update_rpm(self, rpm):
+        """Accept an externally-cached RPM reading (from main.py rpm_reader).
+
+        Updates fault state without performing a blocking tach read.
+        Called every 10s by the rpm_reader async task.
+        """
+        if self._running and rpm is not None:
+            self._apply_rpm_fault(rpm)
+
+    def _apply_rpm_fault(self, rpm):
+        """Update fault state based on an RPM reading."""
         self._last_rpm = rpm
         self.fault_last_checked_ms = time.ticks_ms()
         if rpm == 0:
@@ -116,38 +130,13 @@ class ExhaustFan:
             if self._logger:
                 self._logger.event(
                     "exhaust",
-                    "Fan RPM is 0 after on() - possible stall",
+                    "Fan RPM is 0 - possible stall",
                     level="ERROR",
                 )
         elif self.fault and self.fault_code == "EXHAUST_FAN_STALL":
             self.fault = False
             self.fault_code = None
             self.fault_message = None
-        return rpm
-
-    def update_rpm(self, rpm):
-        """Accept an externally-cached RPM reading (from main.py rpm_reader).
-
-        Updates fault state without performing a blocking tach read.
-        Called every 10s by the rpm_reader async task.
-        """
-        self._last_rpm = rpm
-        self.fault_last_checked_ms = time.ticks_ms()
-        if self._running and rpm is not None and rpm == 0:
-            self.fault = True
-            self.fault_code = "EXHAUST_FAN_STALL"
-            self.fault_message = "Exhaust fan RPM is 0 - possible stall"
-            if self._logger:
-                self._logger.event(
-                    "exhaust",
-                    "Fan RPM is 0 while running - possible stall",
-                    level="ERROR",
-                )
-        elif self._running and rpm is not None and rpm > 0:
-            if self.fault and self.fault_code == "EXHAUST_FAN_STALL":
-                self.fault = False
-                self.fault_code = None
-                self.fault_message = None
 
     def check_health(self):
         """Periodic self-check. Returns True if faulted.

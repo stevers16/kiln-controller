@@ -297,6 +297,18 @@ class KilnSchedule:
             return VENT_LOOP_INTERVAL_S
         return LOOP_INTERVAL_S
 
+    @property
+    def is_running(self):
+        """True if a drying run is currently active."""
+        return self._running
+
+    @property
+    def schedule_name(self):
+        """Name of the loaded schedule, or None."""
+        if self._schedule is None:
+            return None
+        return self._schedule.get("name")
+
     def status(self):
         """Return a snapshot of current controller state."""
         stage = self._current_stage()
@@ -331,8 +343,8 @@ class KilnSchedule:
             "actual_rh_pct":   actual_rh,
             "actual_mc_maple": mc_maple,
             "actual_mc_beech": mc_beech,
-            "heater_on":       self._heater.is_on(),
-            "vents_open":      self._vents.is_open(),
+            "heater_on":       self._heater.is_on,
+            "vents_open":      self._vents.is_open,
             "vent_reason":     self._vent_reason,
             "cooldown":        self._cooldown,
         }
@@ -347,13 +359,13 @@ class KilnSchedule:
 
         # Overheat venting takes priority -- heater stays off
         if self._vent_reason == "temp_high":
-            if self._heater.is_on():
+            if self._heater.is_on:
                 self._heater.off()
                 self._log_event("Heater off (overheat vent active)")
                 self._heater_on_since = None
             return
 
-        if temp_c < target - TEMP_DEADBAND_C and not self._heater.is_on():
+        if temp_c < target - TEMP_DEADBAND_C and not self._heater.is_on:
             self._heater.on()
             self._heater_on_since = time.ticks_ms()
             self._heater_on_temp = temp_c
@@ -361,14 +373,14 @@ class KilnSchedule:
             self._log_event(f"Heater on (temp {temp_c:.1f} < "
                             f"target {target:.1f} - {TEMP_DEADBAND_C})")
 
-        elif temp_c > target + TEMP_DEADBAND_C and self._heater.is_on():
+        elif temp_c > target + TEMP_DEADBAND_C and self._heater.is_on:
             self._heater.off()
             self._log_event(f"Heater off (temp {temp_c:.1f} > "
                             f"target {target:.1f} + {TEMP_DEADBAND_C})")
             self._heater_on_since = None
 
         # Heater fault detection
-        if (self._heater.is_on() and self._heater_on_since is not None
+        if (self._heater.is_on and self._heater_on_since is not None
                 and not self._heater_fault_alerted):
             on_ms = time.ticks_diff(time.ticks_ms(), self._heater_on_since)
             if on_ms >= HEATER_FAULT_MIN * 60_000:
@@ -398,7 +410,7 @@ class KilnSchedule:
             # Activate or upgrade to overheat venting
             self._vents.open()
             self._exhaust.on(EXHAUST_OVERHEAT_SPEED)
-            if self._heater.is_on():
+            if self._heater.is_on:
                 self._heater.off()
                 self._log_event("Heater off (overheat)")
             prev = self._vent_reason
@@ -558,7 +570,7 @@ class KilnSchedule:
                         f"{new_stage['target_rh_pct']} pct RH)")
 
         # Reset heater fault tracking for new stage
-        if self._heater.is_on():
+        if self._heater.is_on:
             self._heater_on_since = time.ticks_ms()
             self._heater_on_temp = temp_c
         self._heater_fault_alerted = False
@@ -599,41 +611,30 @@ class KilnSchedule:
         """Check out-of-range conditions and fire rate-limited alerts."""
         target_temp = stage["target_temp_c"]
         target_rh = stage["target_rh_pct"]
+
+        self._temp_oor_since = self._check_oor(
+            temp_c, target_temp, TEMP_DEADBAND_C,
+            self._temp_oor_since, "temp_out_of_range", temp_c, rh_pct)
+
+        self._rh_oor_since = self._check_oor(
+            rh_pct, target_rh, RH_DEADBAND_PCT,
+            self._rh_oor_since, "rh_out_of_range", temp_c, rh_pct)
+
+    def _check_oor(self, value, target, deadband, oor_since, alert_type,
+                   temp_c, rh_pct):
+        """Check one out-of-range condition. Returns updated oor_since."""
+        in_band = (target - deadband) <= value <= (target + deadband)
+        if in_band:
+            return None
         now = time.ticks_ms()
-
-        # Temperature out of range
-        temp_in_band = (target_temp - TEMP_DEADBAND_C
-                        <= temp_c
-                        <= target_temp + TEMP_DEADBAND_C)
-
-        if not temp_in_band:
-            if self._temp_oor_since is None:
-                self._temp_oor_since = now
-            else:
-                oor_ms = time.ticks_diff(now, self._temp_oor_since)
-                if oor_ms >= OUT_OF_RANGE_ALERT_MIN * 60_000:
-                    msg = (f"ALERT;temp_out_of_range;stage={self._stage_index};"
-                           f"temp={temp_c:.1f};rh={rh_pct:.1f}")
-                    self._send_alert("temp_out_of_range", msg)
-        else:
-            self._temp_oor_since = None
-
-        # RH out of range
-        rh_in_band = (target_rh - RH_DEADBAND_PCT
-                      <= rh_pct
-                      <= target_rh + RH_DEADBAND_PCT)
-
-        if not rh_in_band:
-            if self._rh_oor_since is None:
-                self._rh_oor_since = now
-            else:
-                oor_ms = time.ticks_diff(now, self._rh_oor_since)
-                if oor_ms >= OUT_OF_RANGE_ALERT_MIN * 60_000:
-                    msg = (f"ALERT;rh_out_of_range;stage={self._stage_index};"
-                           f"temp={temp_c:.1f};rh={rh_pct:.1f}")
-                    self._send_alert("rh_out_of_range", msg)
-        else:
-            self._rh_oor_since = None
+        if oor_since is None:
+            return now
+        oor_ms = time.ticks_diff(now, oor_since)
+        if oor_ms >= OUT_OF_RANGE_ALERT_MIN * 60_000:
+            msg = (f"ALERT;{alert_type};stage={self._stage_index};"
+                   f"temp={temp_c:.1f};rh={rh_pct:.1f}")
+            self._send_alert(alert_type, msg)
+        return oor_since
 
     # ------------------------------------------------------------------
     # Logging helpers
@@ -668,8 +669,8 @@ class KilnSchedule:
             "rh_intake":   sensor_data.get("rh_intake"),
             "mc_maple":    mc_maple,
             "mc_beech":    mc_beech,
-            "heater":      self._heater.is_on(),
-            "vents":       self._vents.is_open(),
+            "heater":      self._heater.is_on,
+            "vents":       self._vents.is_open,
             "vent_reason": self._vent_reason,
             "exhaust_pct": self._exhaust.speed_pct,
             "target_temp": stage["target_temp_c"],
@@ -1020,7 +1021,7 @@ def test():
     ctrl8.start()
     heater8.on()  # simulate heater was on
     ctrl8.stop()
-    passed = (not heater8.is_on() and vents8.is_open()
+    passed = (not heater8.is_on and vents8.is_open
               and circ8.is_running and not exhaust8.is_running)
     print(f"  {'PASS' if passed else 'FAIL'} - stop(): heater off, vents open, "
           f"circ on, exhaust off")
@@ -1039,7 +1040,7 @@ def test():
     sensors9.temp_lumber = 47.0
     sensors9.rh_lumber = 60.0
     ctrl9.tick()
-    passed = heater9.is_on()
+    passed = heater9.is_on
     print(f"  {'PASS' if passed else 'FAIL'} - Temp {sensors9.temp_lumber} < target-deadband: "
           f"heater on")
     all_passed &= passed
@@ -1047,7 +1048,7 @@ def test():
     # Temp 53 -> heater should turn off
     sensors9.temp_lumber = 53.0
     ctrl9.tick()
-    passed = not heater9.is_on()
+    passed = not heater9.is_on
     print(f"  {'PASS' if passed else 'FAIL'} - Temp {sensors9.temp_lumber} > target+deadband: "
           f"heater off")
     all_passed &= passed
@@ -1070,7 +1071,7 @@ def test():
     sensors10.rh_lumber = 60.0
     heater10.on()
     ctrl10.tick()
-    passed = (vents10.is_open() and not heater10.is_on()
+    passed = (vents10.is_open and not heater10.is_on
               and ctrl10._vent_reason == "temp_high")
     print(f"  {'PASS' if passed else 'FAIL'} - Overheat: vents open, heater off, "
           f"reason=temp_high")
@@ -1079,7 +1080,7 @@ def test():
     # Cool down below target + deadband/2 = 51
     sensors10.temp_lumber = 50.5
     ctrl10.tick()
-    passed = not vents10.is_open() and ctrl10._vent_reason is None
+    passed = not vents10.is_open and ctrl10._vent_reason is None
     print(f"  {'PASS' if passed else 'FAIL'} - Overheat resolved: vents closed")
     all_passed &= passed
     ctrl10.stop()

@@ -496,13 +496,13 @@ def _update_status_cache():
         except Exception:
             pass
         try:
-            if schedule._running and schedule._run_start_ms:
+            if schedule.is_running and schedule._run_start_ms:
                 elapsed = time.ticks_diff(time.ticks_ms(), schedule._run_start_ms)
                 total_h = round(elapsed / 3_600_000, 2)
         except Exception:
             pass
         try:
-            if schedule._schedule and schedule._running:
+            if schedule._schedule and schedule.is_running:
                 stages = schedule._schedule.get("stages", [])
                 idx = schedule._stage_index
                 if 0 <= idx < len(stages):
@@ -966,7 +966,7 @@ async def handle_health(writer):
             "free_mem_bytes": gc.mem_free(),
             "sdcard_mounted": sdcard.is_mounted(),
             "rtc_set": _rtc_is_set(),
-            "run_active": schedule._running if schedule else False,
+            "run_active": schedule.is_running if schedule else False,
             "firmware_version": config.VERSION,
         },
     )
@@ -977,8 +977,9 @@ async def handle_status(writer):
 
 
 async def handle_version(writer):
-    mp_ver = uos.uname().version if hasattr(uos.uname(), "version") else "unknown"
-    board = uos.uname().machine if hasattr(uos.uname(), "machine") else "unknown"
+    info = uos.uname()
+    mp_ver = info.version if hasattr(info, "version") else "unknown"
+    board = info.machine if hasattr(info, "machine") else "unknown"
     await send_json(
         writer,
         {
@@ -1012,7 +1013,7 @@ async def handle_history(query, writer):
 
     # Find the data CSV for the requested run (or current)
     run_id = query.get("run", "")
-    csv_file = _find_data_csv(run_id)
+    csv_file = _find_run_file("data_", ".csv", run_id)
     if csv_file is None:
         await send_error(writer, "No log data found", 404)
         return
@@ -1111,7 +1112,7 @@ async def handle_alerts(query, writer):
 
     event_file = None
     if sdcard is not None and sdcard.is_mounted():
-        event_file = _find_event_file(run_id)
+        event_file = _find_run_file("event_", ".txt", run_id)
 
     alerts = []
     if event_file:
@@ -1321,7 +1322,7 @@ async def handle_logs_delete(run_id, writer):
         return
 
     # Prevent deleting active run
-    if schedule._running and logger._run_active:
+    if schedule.is_running and logger.run_active:
         try:
             suffix = logger._file_suffix() if hasattr(logger, "_file_suffix") else ""
             # Check if run_id matches current active log
@@ -1510,32 +1511,22 @@ async def handle_schedule_delete(filename, writer):
 
 
 async def handle_calibration_get(writer):
+    defaults = {
+        "channel_1_offset": 0.0,
+        "channel_2_offset": 0.0,
+        "calibrated_at": None,
+        "source": "defaults",
+    }
     text = sdcard.read_text("calibration.json")
     if text is None:
-        await send_json(
-            writer,
-            {
-                "channel_1_offset": 0.0,
-                "channel_2_offset": 0.0,
-                "calibrated_at": None,
-                "source": "defaults",
-            },
-        )
+        await send_json(writer, defaults)
         return
     try:
         cal = json.loads(text)
         cal["source"] = "calibration.json"
         await send_json(writer, cal)
     except Exception:
-        await send_json(
-            writer,
-            {
-                "channel_1_offset": 0.0,
-                "channel_2_offset": 0.0,
-                "calibrated_at": None,
-                "source": "defaults",
-            },
-        )
+        await send_json(writer, defaults)
 
 
 async def handle_calibration_post(body, writer):
@@ -1609,7 +1600,7 @@ async def handle_moisture_live(writer):
 
 
 async def handle_run_start(body, writer):
-    if schedule._running:
+    if schedule.is_running:
         await send_error(writer, "Run already active", 409)
         return
     if not sdcard.is_mounted():
@@ -1635,18 +1626,14 @@ async def handle_run_start(body, writer):
         return
 
     ts = time.time() if _rtc_is_set() else 0
-    name = ""
-    try:
-        name = schedule._schedule.get("name", "")
-    except Exception:
-        pass
+    name = schedule.schedule_name or ""
 
     _update_status_cache()
     await send_json(writer, {"ok": True, "schedule": name, "started_at": ts})
 
 
 async def handle_run_stop(body, writer):
-    if not schedule._running:
+    if not schedule.is_running:
         await send_error(writer, "No run active", 409)
         return
 
@@ -1704,7 +1691,7 @@ async def handle_test_run(writer):
     if _test_running:
         await send_error(writer, "Test already in progress", 409)
         return
-    if schedule._running:
+    if schedule.is_running:
         await send_error(writer, "Cannot test while run active", 409)
         return
 
@@ -1838,33 +1825,23 @@ def _stat_time_str(stat):
 # -----------------------------------------------------------------------
 
 
-def _find_data_csv(run_id=""):
+def _find_run_file(prefix, ext, run_id=""):
+    """Find a run log file on the SD card by prefix and extension.
+
+    Returns filename (e.g. "data_20260317_1430.csv") or None.
+    Without run_id, returns the most recent (last alphabetically).
+    """
     if not sdcard.is_mounted():
         return None
     files = sdcard.listdir()
-    csvs = [f for f in files if f.startswith("data_") and f.endswith(".csv")]
-    if not csvs:
+    matches = [f for f in files if f.startswith(prefix) and f.endswith(ext)]
+    if not matches:
         return None
     if run_id:
-        target = f"data_{run_id}.csv"
-        return target if target in csvs else None
-    # Default: most recent (last alphabetically)
-    csvs.sort()
-    return csvs[-1]
-
-
-def _find_event_file(run_id=""):
-    if not sdcard.is_mounted():
-        return None
-    files = sdcard.listdir()
-    events = [f for f in files if f.startswith("event_") and f.endswith(".txt")]
-    if not events:
-        return None
-    if run_id:
-        target = f"event_{run_id}.txt"
-        return target if target in events else None
-    events.sort()
-    return events[-1]
+        target = f"{prefix}{run_id}{ext}"
+        return target if target in matches else None
+    matches.sort()
+    return matches[-1]
 
 
 # -----------------------------------------------------------------------
@@ -1970,10 +1947,10 @@ async def _run_single_test(tid):
     if tid == "vents_open_close":
         vents.open()
         await asyncio.sleep(1)
-        is_open = vents.is_open()
+        is_open = vents.is_open
         vents.close()
         await asyncio.sleep(1)
-        is_closed = not vents.is_open()
+        is_closed = not vents.is_open
         if is_open and is_closed:
             return ("pass", "Open and close verified")
         return ("fail", f"open={is_open} closed={is_closed}")
@@ -1981,10 +1958,10 @@ async def _run_single_test(tid):
     if tid == "heater_on_off":
         heater.on()
         await asyncio.sleep(0.5)
-        was_on = heater.is_on()
+        was_on = heater.is_on
         heater.off()
         await asyncio.sleep(0.5)
-        is_off = not heater.is_on()
+        is_off = not heater.is_on
         if was_on and is_off:
             return ("pass", "On/off verified via is_on()")
         return ("fail", f"on={was_on} off_after={is_off}")
@@ -2062,7 +2039,7 @@ async def _run_single_test(tid):
         return ("fail", f"Failed to load {config.DEFAULT_SCHEDULE}")
 
     if tid == "logger_event":
-        if not logger._run_active:
+        if not logger.run_active:
             logger.begin_run()
         logger.event("test", "System test event")
         # Verify by reading back
@@ -2071,7 +2048,7 @@ async def _run_single_test(tid):
         return ("fail", "No event file open")
 
     if tid == "logger_data":
-        if not logger._run_active:
+        if not logger.run_active:
             logger.begin_run()
         logger.data({"ts": time.time(), "temp_lumber": 25.0, "stage": "test"})
         if logger._data_file:
@@ -2133,7 +2110,7 @@ async def control_loop():
             if schedule is not None:
                 schedule.tick()
                 # Rate-limit LoRa telemetry to every 30s minimum
-                if (lora is not None and schedule._running
+                if (lora is not None and schedule.is_running
                         and time.ticks_diff(time.ticks_ms(), _last_lora_ms) >= 30_000):
                     _send_lora_telemetry()
                     _last_lora_ms = time.ticks_ms()
@@ -2258,7 +2235,7 @@ async def lora_heartbeat():
         return
     while True:
         try:
-            run_active = schedule is not None and schedule._running
+            run_active = schedule is not None and schedule.is_running
             if not run_active:
                 lora.send_telemetry(
                     {

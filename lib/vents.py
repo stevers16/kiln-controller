@@ -69,8 +69,9 @@ class Vents:
         if self._logger:
             self._logger.event("vents", "Vents closed")
 
+    @property
     def is_open(self):
-        """Return True if last commanded position was open (not sensed)."""
+        """True if last commanded position was open (not sensed)."""
         return self._open
 
     def verify_position(self, expected_min_mA=100, expected_max_mA=400):
@@ -150,7 +151,7 @@ def test():
     # --- Test 1: close() - no exception; is_open() returns False ---
     try:
         vents.close()
-        passed = not vents.is_open()
+        passed = not vents.is_open
         print(f"  {'PASS' if passed else 'FAIL'} - close(): no exception, is_open()=False")
     except Exception as e:
         print(f"  FAIL - close() raised: {e}")
@@ -160,7 +161,7 @@ def test():
     # --- Test 2: open() - no exception; is_open() returns True ---
     try:
         vents.open()
-        passed = vents.is_open()
+        passed = vents.is_open
         print(f"  {'PASS' if passed else 'FAIL'} - open(): no exception, is_open()=True")
     except Exception as e:
         print(f"  FAIL - open() raised: {e}")
@@ -170,7 +171,7 @@ def test():
     # --- Test 3: close() again - no exception; is_open() returns False ---
     try:
         vents.close()
-        passed = not vents.is_open()
+        passed = not vents.is_open
         print(f"  {'PASS' if passed else 'FAIL'} - close() again: no exception, is_open()=False")
     except Exception as e:
         print(f"  FAIL - close() raised: {e}")
@@ -185,7 +186,7 @@ def test():
         vents.close()
         time.sleep_ms(1000)
         vents.open()
-        passed = vents.is_open()
+        passed = vents.is_open
         print(f"  {'PASS' if passed else 'FAIL'} - rapid cycle: no PWM init errors, is_open()=True")
     except Exception as e:
         print(f"  FAIL - rapid cycle raised: {e}")
