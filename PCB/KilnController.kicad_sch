@@ -4534,7 +4534,7 @@
 		(uuid "742d62a5-9c1b-472b-955b-f19bc4e87996")
 	)
 	(label "HEATER_SSR"
-		(at 78.74 107.95 0)
+		(at 78.74 115.57 0)
 		(effects
 			(font
 				(size 1.27 1.27)
@@ -4634,7 +4634,7 @@
 		(uuid "889d2508-1c59-45f8-bda5-b15837c5aee6")
 	)
 	(label "FAN_CIR_PWM"
-		(at 78.74 113.03 0)
+		(at 78.74 107.95 0)
 		(effects
 			(font
 				(size 1.27 1.27)
@@ -4864,7 +4864,7 @@
 		(uuid "d189aae3-6b90-41cb-9a0f-be5ae56cee4d")
 	)
 	(label "FAN_EX_PWM"
-		(at 78.74 115.57 0)
+		(at 78.74 113.03 0)
 		(effects
 			(font
 				(size 1.27 1.27)
