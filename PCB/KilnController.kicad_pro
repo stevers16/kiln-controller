@@ -574,7 +574,7 @@
       "gencad": "",
       "idf": "",
       "netlist": "",
-      "plot": "",
+      "plot": "FabricationFiles/",
       "pos_files": "",
       "specctra_dsn": "",
       "step": "KilnController.step",
