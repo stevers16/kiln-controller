@@ -64,7 +64,7 @@ LORA_SF       = 9
 LORA_FREQ_MHZ = 433.0
 
 # Database
-DB_PATH       = "/home/pi/kiln_data.db"
+DB_PATH       = "/home/srelias/CottageKiln/kiln_data.db"
 
 # API
 API_HOST      = "0.0.0.0"
@@ -429,7 +429,7 @@ After=network.target
 
 [Service]
 ExecStart=/usr/bin/python3 -m kiln_server
-WorkingDirectory=/home/pi/kiln_server
+WorkingDirectory=/home/srelias/CottageKiln/kiln_server
 Restart=always
 RestartSec=5
 User=pi
@@ -475,7 +475,7 @@ The bench Pi4 and cottage Pi4 are identical in software. Only `config.py` differ
 | Setting | Bench | Cottage |
 |---------|-------|---------|
 | `ENVIRONMENT` | "bench" | "cottage" |
-| `DB_PATH` | `/home/pi/kiln_bench.db` | `/home/pi/kiln_data.db` |
+| `DB_PATH` | `/home/srelias/CottageKiln/kiln_bench.db` | `/home/srelias/CottageKiln/kiln_data.db` |
 | `NTFY_TOPIC` | (optional bench topic) | (production topic) |
 
 The Kivy app Settings screen shows the `ENVIRONMENT` value from `/health` so the

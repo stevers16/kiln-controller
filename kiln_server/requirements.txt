@@ -1,0 +1,4 @@
+flask>=3.0
+requests>=2.31
+spidev>=3.6
+RPi.GPIO>=0.7.1

@@ -1,0 +1,14 @@
+[Unit]
+Description=Kiln LoRa Telemetry Server
+After=network.target
+
+[Service]
+ExecStart=/usr/bin/python3 -m kiln_server
+WorkingDirectory=/home/srelias/CottageKiln
+Restart=always
+RestartSec=5
+User=pi
+Environment=PYTHONUNBUFFERED=1
+
+[Install]
+WantedBy=multi-user.target
