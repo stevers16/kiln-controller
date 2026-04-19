@@ -22,6 +22,7 @@ from kilnapp.connection import ConnectionManager
 from kilnapp.screens.alerts import AlertsScreen
 from kilnapp.screens.dashboard import DashboardScreen
 from kilnapp.screens.placeholder import PlaceholderScreen
+from kilnapp.screens.runs import RunsScreen
 from kilnapp.screens.settings import SettingsScreen
 from kilnapp.storage import SettingsStore
 from kilnapp.widgets.bottom_nav import BottomNav
@@ -35,11 +36,11 @@ Window.size = (390, 780)
 # Tabs that are still placeholders in this phase
 PLACEHOLDER_DEFS = [
     ("history", "History", "Time-series plots from /history. (Phase 7)"),
-    ("runs", "Runs", "Past and current drying runs. (Phase 6)"),
 ]
 TAB_TITLES = {sn: title for sn, title, _ in PLACEHOLDER_DEFS}
 TAB_TITLES["dashboard"] = "Dashboard"
 TAB_TITLES["alerts"] = "Alerts"
+TAB_TITLES["runs"] = "Runs"
 TAB_TITLES["settings"] = "Settings"
 
 
@@ -78,6 +79,9 @@ class KilnApp(App):
             )
         )
         self.screen_manager.add_widget(AlertsScreen(connection=self.connection))
+        self.screen_manager.add_widget(
+            RunsScreen(connection=self.connection, on_navigate=self._navigate_to)
+        )
         for screen_name, title, note in PLACEHOLDER_DEFS:
             self.screen_manager.add_widget(
                 PlaceholderScreen(screen_name=screen_name, title=title, note=note)

@@ -438,13 +438,13 @@ user testing and approval after every phase. Plan file:
 | 2 | Settings + persistent storage + API client + auto-detect connection | Approved |
 | 3 | Dashboard MVP (read-only from Pico /status) | Approved |
 | 4 | Dashboard banners + AP-mode action buttons (start/stop/advance) | Approved |
-| 5 | Alerts screen | Awaiting approval |
-| 6 | Runs screen + run detail view | Not started |
+| 5 | Alerts screen | Approved |
+| 6 | Runs screen + run detail view + delete | Awaiting approval |
 | 7 | History graphs (5 plot tabs) | Not started |
 | 8 | Start Run flow (AP only) | Not started |
 | 9 | Schedules viewer + editor (AP only) | Not started |
 | 10 | System Test screen (AP only) | Not started |
-| 11 | Logs screen (AP only) | Not started |
+| 11 | Logs screen - view/download remaining (delete moved to Phase 6) | Not started |
 | 12 | Moisture Calibration (AP only) | Not started |
 | 13 | Module Upload (AP only) | Not started |
 | 14 | Pi4 Cottage mode end-to-end | Blocked on kiln_server |
@@ -489,6 +489,16 @@ In rough priority order:
   short strings so this hasn't been observed, but the same fix pattern
   (hand-built compact JSON) should be applied for safety. Lower priority
   than the telemetry bug since it hasn't fired yet.
+- **`/runs` is slow (>5s with many historical runs).** `handle_runs` in
+  `main.py` (~line 1247) opens every `data_*.csv` and `event_*.txt` on
+  the SD card and reads each one line-by-line to compute `data_rows` and
+  `event_count`. Over SPI to a SD card with ~10+ historical runs this
+  easily exceeds the default 5s HTTP timeout. Client-side workaround:
+  the Kivy `runs()` method uses a 30s timeout. Server-side fix: drop
+  the line counting entirely (the Pi4 daemon will have SQLite and can
+  compute it properly) OR cache counts per run and update only when a
+  run ends. `size_bytes` from `uos.stat()` is already returned and is
+  cheap; that's enough for the runs list.
 - **`/alerts` WARN vs WARNING inconsistency.** `handle_alerts` in
   `main.py` (line ~1010) accepts the query filter as `level=WARNING` but
   parses log lines for `[WARN` and returns `"WARN"` in the response

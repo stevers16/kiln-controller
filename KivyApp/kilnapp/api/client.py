@@ -164,8 +164,22 @@ class KilnApiClient:
 
     def runs(self) -> Any:
         """GET /runs. Returns {runs: [...]} - list of run records derived
-        from SD card log files (no SQLite on the Pico)."""
-        return self._get("/runs")
+        from SD card log files (no SQLite on the Pico).
+
+        Uses a longer timeout than the default because the Pico handler
+        scans every data_*.csv + event_*.txt on the SD card and counts
+        lines line-by-line over SPI. With many historical runs this can
+        comfortably exceed the 5s default. See PROJECT.md 'Known firmware
+        bugs' for the planned server-side fix.
+        """
+        return self._get("/runs", timeout=30.0)
+
+    def run_delete(self, run_id: str) -> Any:
+        """DELETE /logs/{run_id}. Removes both the event log and data CSV
+        for the run from the SD card. 409 if attempting to delete the
+        currently active run.
+        """
+        return self._request("DELETE", f"/logs/{run_id}")
 
     # ---- run control (Pico AP only - all require auth) --------------------
 
