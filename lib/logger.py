@@ -39,6 +39,8 @@ class Logger:
         self._event_file = None
         self._data_file = None
         self._run_active = False
+        self._run_id = None  # suffix used for current per-run files (e.g.
+                             # "20260419_1630" or "run_01286")
         self._write_failures = 0  # consecutive write failures
 
         # Fault contract
@@ -141,6 +143,7 @@ class Logger:
             self._data_file.write(",".join(DATA_COLUMNS) + "\n")
             self._data_file.flush()
             self._run_active = True
+            self._run_id = suffix
             self.event("logger", "Run started")
             return True
         except Exception as e:
@@ -158,6 +161,16 @@ class Logger:
             self.event("logger", "Run ended")
         self._close_run_files()
         self._run_active = False
+        self._run_id = None
+
+    @property
+    def run_id(self):
+        """Suffix of the currently-open per-run log files, or None.
+
+        Used by /status to expose a canonical identifier for the active
+        run so clients can correlate /status with /runs unambiguously.
+        """
+        return self._run_id
 
     def check_health(self):
         """Periodic self-check. Returns True if faulted."""
@@ -217,9 +230,19 @@ class Logger:
         """
         Append a CSV data row. record is a dict with keys from DATA_COLUMNS.
         Missing keys are written as empty. Floats to 2 decimal places. Bools as 1/0.
+
+        If record has no `ts` key (the common case - callers rarely build
+        their own timestamp), one is auto-populated from _timestamp() so
+        the history plots always have an x-axis. An explicit `ts` in the
+        record overrides this.
         """
         if not self._data_file:
             return
+
+        # Auto-populate ts so callers do not have to. Explicit ts wins.
+        if "ts" not in record or record.get("ts") in ("", None):
+            record = dict(record)
+            record["ts"] = self._timestamp()
 
         values = []
         for col in DATA_COLUMNS:

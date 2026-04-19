@@ -8,8 +8,15 @@ override":
     3. Pico STA  (default 10.0.0.24:80)     GET /health, 3s timeout
     4. otherwise -> Offline
 
-The override switch in Settings can force one of the modes; when forced, we
-do NOT fall back to the other endpoints.
+Override modes (from the Settings > Mode dropdown):
+
+    auto     - try all three in order (default)
+    direct   - Pico AP first, Pico STA fallback (never Pi4)
+    sta      - Pico STA only (needed when Pi4 is up on the same LAN;
+               Auto would land on Pi4 first and never reach the Pico)
+    cottage  - Pi4 only
+
+When forced, we do NOT fall back to the other endpoints.
 
 This module never touches Kivy. It is called from a worker thread by
 ConnectionManager and the result is delivered to the main thread via
@@ -26,6 +33,7 @@ from kilnapp.storage import (
     OVERRIDE_AUTO,
     OVERRIDE_COTTAGE,
     OVERRIDE_DIRECT,
+    OVERRIDE_STA,
     Settings,
 )
 
@@ -79,6 +87,15 @@ def autodetect(client: KilnApiClient, settings: Settings) -> DetectResult:
         # Force Direct: try Pico AP, then Pico STA. Never fall back to Pi4.
         if pico_ap and _probe(client, pico_ap):
             return DetectResult(MODE_DIRECT, pico_ap, requires_auth=True)
+        if pico_sta and _probe(client, pico_sta):
+            return DetectResult(MODE_STA, pico_sta, requires_auth=True)
+        return DetectResult.offline()
+
+    if override == OVERRIDE_STA:
+        # Force STA: only try the Pico STA IP. Exists because Auto will
+        # always land on Pi4 (middle of the probe order) when the Pi4
+        # daemon is up on the same LAN, leaving no way to reach the
+        # Pico directly for API work.
         if pico_sta and _probe(client, pico_sta):
             return DetectResult(MODE_STA, pico_sta, requires_auth=True)
         return DetectResult.offline()

@@ -1,7 +1,7 @@
 """Kiln Controller - Kivy App root.
 
-Phase 2: real Settings screen + ConnectionManager + live indicator. The other
-four tabs are still placeholders.
+Phase 7: the five-tab shell is now fully wired - Dashboard, History, Alerts,
+Runs, Settings are all real screens. No placeholders remain.
 """
 
 from kivy.app import App
@@ -21,7 +21,7 @@ from kilnapp.api.autodetect import (
 from kilnapp.connection import ConnectionManager
 from kilnapp.screens.alerts import AlertsScreen
 from kilnapp.screens.dashboard import DashboardScreen
-from kilnapp.screens.placeholder import PlaceholderScreen
+from kilnapp.screens.history import HistoryScreen
 from kilnapp.screens.runs import RunsScreen
 from kilnapp.screens.settings import SettingsScreen
 from kilnapp.storage import SettingsStore
@@ -33,15 +33,13 @@ from kilnapp.widgets.top_bar import TopBar
 Window.size = (390, 780)
 
 
-# Tabs that are still placeholders in this phase
-PLACEHOLDER_DEFS = [
-    ("history", "History", "Time-series plots from /history. (Phase 7)"),
-]
-TAB_TITLES = {sn: title for sn, title, _ in PLACEHOLDER_DEFS}
-TAB_TITLES["dashboard"] = "Dashboard"
-TAB_TITLES["alerts"] = "Alerts"
-TAB_TITLES["runs"] = "Runs"
-TAB_TITLES["settings"] = "Settings"
+TAB_TITLES = {
+    "dashboard": "Dashboard",
+    "history": "History",
+    "alerts": "Alerts",
+    "runs": "Runs",
+    "settings": "Settings",
+}
 
 
 class _Root(BoxLayout):
@@ -78,14 +76,13 @@ class KilnApp(App):
                 on_navigate=self._navigate_to,
             )
         )
-        self.screen_manager.add_widget(AlertsScreen(connection=self.connection))
+        self.history_screen = HistoryScreen(connection=self.connection)
+        self.screen_manager.add_widget(self.history_screen)
+        self.alerts_screen = AlertsScreen(connection=self.connection)
+        self.screen_manager.add_widget(self.alerts_screen)
         self.screen_manager.add_widget(
             RunsScreen(connection=self.connection, on_navigate=self._navigate_to)
         )
-        for screen_name, title, note in PLACEHOLDER_DEFS:
-            self.screen_manager.add_widget(
-                PlaceholderScreen(screen_name=screen_name, title=title, note=note)
-            )
         self.screen_manager.add_widget(SettingsScreen(connection=self.connection))
         root.add_widget(self.screen_manager)
 
@@ -110,11 +107,22 @@ class KilnApp(App):
         self.screen_manager.current = screen_name
         self.top_bar.set_title(TAB_TITLES.get(screen_name, "Kiln Controller"))
 
-    def _navigate_to(self, screen_name: str) -> None:
+    def _navigate_to(self, screen_name: str, **kwargs) -> None:
         """Programmatic navigation: switch the screen AND sync the bottom nav.
 
         Used by inter-screen actions like the fault banner -> Alerts tap.
+        Accepts keyword args per target screen:
+          - "history": optional `run_id` to preselect in the run dropdown.
+          - "alerts":  optional `run_id` to filter the alerts list to.
         """
+        if screen_name == "history":
+            run_id = kwargs.get("run_id")
+            if run_id is not None:
+                self.history_screen.preselect_run(run_id)
+        elif screen_name == "alerts":
+            run_id = kwargs.get("run_id")
+            if run_id is not None:
+                self.alerts_screen.preselect_run(run_id)
         self._switch_screen(screen_name)
         self.bottom_nav.select(screen_name)
 

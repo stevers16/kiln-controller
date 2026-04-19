@@ -195,6 +195,7 @@ class AlertsScreen(Screen):
         self._in_flight = False
         self._current_filter = FILTER_ALL
         self._current_run: Optional[str] = None  # None = current run
+        self._pending_preselect: Optional[str] = None
         self._known_runs: List[Dict[str, Any]] = []
         self._current_mode = MODE_OFFLINE
 
@@ -289,9 +290,73 @@ class AlertsScreen(Screen):
         # Subscribe to connection state and tick periodically
         self.connection.add_listener(self._on_connection_change)
 
+    def preselect_run(self, run_id: Optional[str]) -> None:
+        """Called by the app router when navigating here from the Runs
+        detail view. Applied on the next `on_enter`. Pass None to mean
+        'current run'."""
+        self._pending_preselect = run_id or ""  # empty string distinguishes
+                                                 # 'asked for current run' vs
+                                                 # 'no preselect requested'.
+
     def on_enter(self, *args):
         """Refresh immediately when the screen becomes visible."""
-        self.refresh_now()
+        if self._pending_preselect is not None:
+            requested = self._pending_preselect
+            self._pending_preselect = None
+            self._apply_preselect(requested)
+        else:
+            self.refresh_now()
+
+    def _apply_preselect(self, run_id: str) -> None:
+        """Apply a requested run preselection. If the runs list has been
+        populated we can sync the spinner to the matching label; otherwise
+        we store the id, refresh the runs list, and sync after it lands."""
+        self._current_run = run_id or None
+
+        def sync_spinner():
+            if not run_id:
+                self.run_spinner.text = "Current run"
+                return
+            for r in self._known_runs:
+                if r.get("id") == run_id:
+                    label = self._format_run_label(r)
+                    if label in self.run_spinner.values:
+                        self.run_spinner.text = label
+                        return
+            # Unknown id - fall back to showing "Current run" in the
+            # spinner but still filter the alerts fetch to the requested
+            # id (server will return an empty list if it doesn't exist).
+            self.run_spinner.text = "Current run"
+
+        # If we already have a runs list, sync immediately.
+        if self._known_runs:
+            sync_spinner()
+            self.refresh_now()
+            return
+
+        # Otherwise fetch runs first, then sync + refresh.
+        if self._current_mode == MODE_OFFLINE:
+            self.refresh_now()
+            return
+        client = self.connection.client
+        if client.config.base_url is None:
+            self.refresh_now()
+            return
+
+        def work():
+            return client.runs()
+
+        def done(result, err):
+            if err is None and isinstance(result, dict):
+                self._known_runs = result.get("runs") or []
+                values = ["Current run"] + [
+                    self._format_run_label(r) for r in self._known_runs
+                ]
+                self.run_spinner.values = values
+            sync_spinner()
+            self.refresh_now()
+
+        call_async(work, done)
 
     # ---- connection wiring -------------------------------------------------
 
@@ -332,8 +397,21 @@ class AlertsScreen(Screen):
 
     @staticmethod
     def _format_run_label(run: Dict[str, Any]) -> str:
-        started = run.get("started_at_str") or run.get("id") or "?"
-        return started
+        """Friendly label for a run. Prefers the formatted ended
+        timestamp (from file mtime), falls back to the start date parsed
+        from the rid, then to the raw rid.
+
+        Every branch forces str(): Pi4 /runs returns integer primary
+        keys, Pico returns strings - both need to survive Spinner.values.
+        """
+        ended = run.get("ended_at_str")
+        if ended:
+            return str(ended)
+        started = run.get("started_at_str")
+        if started and "-" in str(started):
+            return str(started)
+        rid = run.get("id")
+        return str(rid) if rid is not None else "?"
 
     # ---- data fetching -----------------------------------------------------
 

@@ -46,6 +46,26 @@ def _fmt_size(b: int) -> str:
     return f"{b / (1024 * 1024):.1f} MB"
 
 
+def _run_primary_label(run: Dict[str, Any]) -> str:
+    """Primary 1-line label for a run: prefers `ended_at_str` from the
+    Pico /runs response (derived from file mtime and formatted on the
+    server when the RTC was set). Falls back to the start date parsed
+    from the rid, then to the raw rid.
+
+    Every branch forces str() because MicroPython JSON can surface ints
+    or None in fields we expect to be strings (e.g. if an older firmware
+    is still running on the Pico).
+    """
+    ended = run.get("ended_at_str")
+    if ended:
+        return str(ended)
+    started = run.get("started_at_str")
+    if started and "-" in str(started):
+        return str(started)
+    rid = run.get("id")
+    return str(rid) if rid else "?"
+
+
 # ---- Status badge ----------------------------------------------------------
 
 
@@ -96,16 +116,26 @@ class _RunRow(Panel):
         self.padding = (10, 6, 10, 6)
         self.spacing = 2
 
-        # Header: start date + status badge
+        # Header: primary label (ended or started date) + status badge
         header = BoxLayout(
             orientation="horizontal", size_hint_y=None, height=20, spacing=6
         )
-        started = run.get("started_at_str") or run.get("id") or "?"
-        ts_lbl = value_label(started, size="14sp")
+        ts_lbl = value_label(_run_primary_label(run), size="14sp")
         ts_lbl.size_hint_x = 1
         header.add_widget(ts_lbl)
         header.add_widget(_StatusBadge(is_active))
         self.add_widget(header)
+
+        # Secondary line: show the raw rid and (when meaningful) the
+        # started date, so the user still has the canonical handle.
+        rid = run.get("id") or "?"
+        started = run.get("started_at_str")
+        if run.get("ended_at_str") and started and "-" in started:
+            self.add_widget(
+                small_label(f"Started {started} - id {rid}", size="11sp")
+            )
+        else:
+            self.add_widget(small_label(f"id {rid}", size="11sp"))
 
         # Detail line: data rows, event count, size
         data_rows = run.get("data_rows", 0)
@@ -138,6 +168,7 @@ class _RunDetail(BoxLayout):
         active_status: Optional[Dict[str, Any]],
         on_back=None,
         on_view_alerts=None,
+        on_view_history=None,
         on_delete=None,
         **kwargs,
     ):
@@ -174,8 +205,21 @@ class _RunDetail(BoxLayout):
 
         # Run info panel
         info = Panel()
-        started = run.get("started_at_str") or run.get("id") or "?"
-        info.add_widget(value_label(f"Run: {started}", size="16sp"))
+        info.add_widget(value_label(_run_primary_label(run), size="16sp"))
+
+        rid = run.get("id") or "?"
+        info.add_widget(small_label(f"id: {rid}"))
+
+        started = run.get("started_at_str")
+        if started and "-" in started:
+            info.add_widget(small_label(f"Started: {started}"))
+
+        ended = run.get("ended_at_str")
+        if ended:
+            # During an active run mtime reflects the last write, not an
+            # actual end; call it 'Last update' to avoid confusion.
+            label = "Last update" if is_active else "Ended"
+            info.add_widget(small_label(f"{label}: {ended}"))
 
         status_text = "Active" if is_active else "Completed"
         info.add_widget(small_label(f"Status: {status_text}"))
@@ -248,16 +292,21 @@ class _RunDetail(BoxLayout):
             )
             btn_row.add_widget(alerts_btn)
 
-        # History button (Phase 7 will make this functional)
+        # History button - navigates to the History tab with this run
+        # preselected in the run dropdown.
         history_btn = Button(
             text="View History",
             font_size="13sp",
             background_color=(0.30, 0.55, 0.85, 1),
             color=(1, 1, 1, 1),
         )
-        # Phase 7 will wire this to the History tab with the run pre-selected
-        history_btn.disabled = True
-        history_btn.opacity = 0.5
+        if on_view_history:
+            history_btn.bind(
+                on_release=lambda _b: on_view_history(run.get("id"))
+            )
+        else:
+            history_btn.disabled = True
+            history_btn.opacity = 0.5
         btn_row.add_widget(history_btn)
         self.add_widget(btn_row)
 
@@ -475,14 +524,28 @@ class RunsScreen(Screen):
             self.list_box.add_widget(empty_box)
             return
 
-        # Determine which run (if any) is active
+        # Determine which run (if any) is active. Prefer the explicit
+        # `active_run_id` the firmware reports in /status; fall back to
+        # "most recent by mtime" only on older firmware that doesn't
+        # expose the field.
         active_run_id = None
         if self._active_status and self._active_status.get("run_active"):
-            # The active run is the most recent one
-            if self._runs:
+            active_run_id = self._active_status.get("active_run_id")
+            if not active_run_id and self._runs:
                 active_run_id = self._runs[0].get("id")
 
-        for run in self._runs:
+        # Pull the active run to the top of the list regardless of
+        # server sort order. Necessary because when the Pico RTC is
+        # unset at run-start the file mtime is tiny (near epoch-2000),
+        # pushing the live run to the bottom of a mtime-desc sort.
+        runs = list(self._runs)
+        if active_run_id:
+            for i, r in enumerate(runs):
+                if r.get("id") == active_run_id and i != 0:
+                    runs.insert(0, runs.pop(i))
+                    break
+
+        for run in runs:
             is_active = run.get("id") == active_run_id
             row = _RunRow(
                 run, is_active=is_active, on_tap=self._on_run_tapped
@@ -492,10 +555,15 @@ class RunsScreen(Screen):
     # ---- detail view -------------------------------------------------------
 
     def _on_run_tapped(self, run: Dict[str, Any]) -> None:
-        # Is this the active run?
+        # Is this the active run? Trust the firmware's `active_run_id`
+        # from /status when present; fall back to "first by mtime" on
+        # older firmware.
         is_active = False
         if self._active_status and self._active_status.get("run_active"):
-            if self._runs and self._runs[0].get("id") == run.get("id"):
+            active_id = self._active_status.get("active_run_id")
+            if active_id:
+                is_active = run.get("id") == active_id
+            elif self._runs and self._runs[0].get("id") == run.get("id"):
                 is_active = True
 
         self._show_detail_view(run, is_active)
@@ -515,6 +583,7 @@ class RunsScreen(Screen):
             active_status=self._active_status if is_active else None,
             on_back=self._show_list_view,
             on_view_alerts=self._on_view_alerts,
+            on_view_history=self._on_view_history,
             on_delete=self._on_delete_pressed,
         )
         self._root.add_widget(self._detail_widget)
@@ -534,7 +603,12 @@ class RunsScreen(Screen):
     def _on_view_alerts(self, run_id: Optional[str]) -> None:
         """Navigate to the Alerts tab with this run pre-selected."""
         if self._on_navigate:
-            self._on_navigate("alerts")
+            self._on_navigate("alerts", run_id=run_id)
+
+    def _on_view_history(self, run_id: Optional[str]) -> None:
+        """Navigate to the History tab with this run pre-selected."""
+        if self._on_navigate:
+            self._on_navigate("history", run_id=run_id)
 
     def _on_delete_pressed(self, run: Dict[str, Any]) -> None:
         run_id = run.get("id") or ""

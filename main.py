@@ -590,6 +590,7 @@ def _update_status_cache():
     _status_cache = {
         "ts": time.time() if _rtc_is_set() else 0,
         "run_active": s.get("running", False),
+        "active_run_id": logger.run_id if logger is not None else None,
         "cooldown": s.get("cooldown", False),
         "schedule_name": s.get("schedule_name"),
         "stage_index": s.get("stage_index"),
@@ -1251,10 +1252,13 @@ async def handle_runs(writer):
         event_count = 0
         data_rows = 0
         size = 0
+        data_mtime = 0  # epoch-2000 seconds; 0 if stat fails
+        event_mtime = 0
 
         try:
             stat = uos.stat(f"{sdcard.mount_point}/{data_name}")
             size += stat[6]
+            data_mtime = stat[8]
             # Count data rows (subtract 1 for header)
             with open(f"{sdcard.mount_point}/{data_name}", "r") as f:
                 for _ in f:
@@ -1266,6 +1270,7 @@ async def handle_runs(writer):
         try:
             stat = uos.stat(f"{sdcard.mount_point}/{event_name}")
             size += stat[6]
+            event_mtime = stat[8]
             with open(f"{sdcard.mount_point}/{event_name}", "r") as f:
                 for _ in f:
                     event_count += 1
@@ -1277,10 +1282,29 @@ async def handle_runs(writer):
         if len(rid) >= 13:
             started = f"{rid[0:4]}-{rid[4:6]}-{rid[6:8]} {rid[9:11]}:{rid[11:13]}"
 
+        # mtime is the last write to whichever file is newer. Use it as
+        # the run's "ended at". Only format it as wall-clock when the
+        # Pico RTC was set (year >= 2024); otherwise leave blank so the
+        # client knows not to trust it.
+        mtime = max(data_mtime, event_mtime)
+        ended_at_str = ""
+        if mtime:
+            try:
+                lt = time.localtime(mtime)
+                if lt[0] >= 2024:
+                    ended_at_str = (
+                        f"{lt[0]:04d}-{lt[1]:02d}-{lt[2]:02d} "
+                        f"{lt[3]:02d}:{lt[4]:02d}"
+                    )
+            except Exception:
+                pass
+
         runs.append(
             {
                 "id": rid,
                 "started_at_str": started,
+                "ended_at_str": ended_at_str,
+                "mtime": mtime,
                 "event_log": event_name,
                 "data_csv": data_name,
                 "data_rows": data_rows,
@@ -1288,6 +1312,11 @@ async def handle_runs(writer):
                 "size_bytes": size,
             }
         )
+
+    # Sort by mtime descending so the most recently written run is first.
+    # Zero mtimes sort last (unknown/failed stat). Ties fall back to rid
+    # descending, which is chronological for dated rids.
+    runs.sort(key=lambda r: (r.get("mtime", 0), r.get("id", "")), reverse=True)
 
     await send_json(writer, {"runs": runs})
 

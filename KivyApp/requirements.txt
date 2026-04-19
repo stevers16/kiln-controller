@@ -4,5 +4,12 @@
 kivy==2.3.1
 requests==2.32.3
 
+# Phase 7 - History graphs. matplotlib embedded via kivy_garden.matplotlib
+# (FigureCanvasKivyAgg). Android packaging notes: kivy_garden.matplotlib
+# needs a buildozer recipe patch plus the p4a "matplotlib" recipe; address
+# in Phase 15.
+matplotlib==3.10.8
+kivy_garden.matplotlib==0.1.1.dev0
+
 # KivyMD will be added in Phase 1 when the bottom-nav shell is built.
 # kivymd>=2.0.1.dev0

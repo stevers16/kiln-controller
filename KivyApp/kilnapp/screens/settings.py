@@ -29,6 +29,7 @@ from kilnapp.storage import (
     OVERRIDE_AUTO,
     OVERRIDE_COTTAGE,
     OVERRIDE_DIRECT,
+    OVERRIDE_STA,
     Settings,
 )
 from kilnapp.widgets.form import row, spinner, text_input
@@ -36,7 +37,8 @@ from kilnapp.widgets.form import row, spinner, text_input
 
 _OVERRIDE_LABELS = {
     OVERRIDE_AUTO: "Auto-detect",
-    OVERRIDE_DIRECT: "Force Direct (Pico)",
+    OVERRIDE_DIRECT: "Force Pico AP",
+    OVERRIDE_STA: "Force Pico STA",
     OVERRIDE_COTTAGE: "Force Cottage (Pi4)",
 }
 _OVERRIDE_REVERSE = {v: k for k, v in _OVERRIDE_LABELS.items()}

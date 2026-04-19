@@ -181,6 +181,35 @@ class KilnApiClient:
         """
         return self._request("DELETE", f"/logs/{run_id}")
 
+    def history(
+        self,
+        *,
+        run: Optional[str] = None,
+        fields: Optional[list] = None,
+        resolution: int = 1,
+    ) -> Any:
+        """GET /history. Returns columnar {fields: [...], rows: [[...], ...],
+        run: str, row_count: int}. Row values are already parsed to int /
+        float / None by the Pico handler.
+
+        - run: run id to load; omit for current/most-recent run.
+        - fields: subset of columns to return. Default = all columns.
+        - resolution: return every Nth row; Pico does line-level decimation.
+
+        Timeout is generous because the Pico streams every row over SPI
+        from SD. A multi-day run has thousands of rows; 60s handles the
+        worst case comfortably.
+        """
+        qs = []
+        if run:
+            qs.append(f"run={run}")
+        if fields:
+            qs.append("fields=" + ",".join(fields))
+        if resolution and resolution > 1:
+            qs.append(f"resolution={int(resolution)}")
+        path = "/history" + (("?" + "&".join(qs)) if qs else "")
+        return self._get(path, timeout=60.0)
+
     # ---- run control (Pico AP only - all require auth) --------------------
 
     def run_start(self, schedule_filename: Optional[str] = None) -> Any:
@@ -205,6 +234,17 @@ class KilnApiClient:
         closed. 409 if a run is currently active (call run_stop first).
         """
         return self._post("/run/shutdown")
+
+    def set_time(self, unix_ts: int) -> Any:
+        """POST /time with a unix timestamp so the Pico can set its RTC.
+
+        The Pico has no battery-backed RTC, so without this call its
+        clock defaults to an arbitrary point and all event / data log
+        timestamps and ntfy.sh push timestamps are wrong. Call on
+        connect and any time the user hits 'Sync Pico clock now' in
+        Settings.
+        """
+        return self._post("/time", json={"ts": int(unix_ts)})
 
     # ---- threading helper --------------------------------------------------
 

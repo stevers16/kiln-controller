@@ -32,7 +32,8 @@ manual stage advancement via REST API.
 Cottage-side architecture decided: Ra-02 LoRa receiver wired directly to Pi4 SPI
 bus. Pi4 runs a Python daemon (`kiln_server`) that receives LoRa packets, stores
 telemetry in SQLite, serves a REST API for the Kivy phone app, and pushes alerts
-via ntfy.sh. No ESP32 or MQTT broker in production system.
+via ntfy.sh. Daemon is now implemented (`kiln_server/`, per
+`Specs/Pi4_demon_spec.md`) and awaiting bench end-to-end test. No ESP32 or MQTT broker in production system.
 
 ---
 
@@ -360,12 +361,18 @@ Pico --> SPI1 --> Ra-02 ~~LoRa~~ Ra-02 --> SPI0 --> Pi4 kiln_server daemon
                                                  --> ntfy.sh --> phone notifications
 ```
 
-**Pi4 `kiln_server` package** (not yet implemented):
-- `lora_receiver.py` -- SX1278 init, DIO0 interrupt-driven receive loop
-- `database.py` -- SQLite insert and query (telemetry, alerts, runs tables)
-- `api.py` -- Flask/FastAPI REST endpoints: /status, /history, /alerts, /runs, /health
-- `notifier.py` -- ntfy.sh HTTP POST on alert receipt
+**Pi4 `kiln_server` package** (implemented, awaiting bench test):
+- `lora_receiver.py` -- SX1278 SPI driver + receive thread; polls DIO0 at 20ms, parses telemetry JSON / heartbeat / `ALERT;...` strings
+- `database.py` -- SQLite schema (telemetry/alerts/runs); WAL mode, per-thread connections, write-lock serialised inserts; columnar `/history` query with field whitelist
+- `api.py` -- Flask app: `/health`, `/status`, `/history`, `/alerts`, `/runs`
+- `notifier.py` -- ntfy.sh POST with 30-min per-code suppression; lifecycle codes (`run_started`, `run_complete`, `equalizing_start`, `conditioning_start`) bypass suppression
 - `config.py` -- only file that differs between bench Pi4 and cottage Pi4
+- `schema.sql` -- applied on first run (CREATE IF NOT EXISTS)
+- `__main__.py` -- wires everything, handles SIGTERM
+- `kiln-server.service` -- systemd unit
+- `requirements.txt` -- flask, requests, spidev, RPi.GPIO
+
+Run lifecycle is inferred: first telemetry with a `stage` opens a run; `run_complete` alert closes it. Pico's wire format (`stage_idx`, no `type` field on telemetry, optional `faults` list) is normalised to schema columns on insert.
 
 **SQLite schema:** telemetry table stores one row per LoRa packet (30s interval);
 alerts table stores fault events; runs table tracks drying run start/end.
@@ -439,8 +446,8 @@ user testing and approval after every phase. Plan file:
 | 3 | Dashboard MVP (read-only from Pico /status) | Approved |
 | 4 | Dashboard banners + AP-mode action buttons (start/stop/advance) | Approved |
 | 5 | Alerts screen | Approved |
-| 6 | Runs screen + run detail view + delete | Awaiting approval |
-| 7 | History graphs (5 plot tabs) | Not started |
+| 6 | Runs screen + run detail view + delete | Approved |
+| 7 | History graphs (5 plot tabs) | Awaiting approval |
 | 8 | Start Run flow (AP only) | Not started |
 | 9 | Schedules viewer + editor (AP only) | Not started |
 | 10 | System Test screen (AP only) | Not started |
@@ -458,17 +465,45 @@ user testing and approval after every phase. Plan file:
 - AP-only screens hide or visibly disable in Cottage mode.
 - See "Kivy app development practices" in `CLAUDE.md` for the full ruleset.
 
+### Phase 7 implementation notes
+- Chart library: `matplotlib==3.10.8` embedded via
+  `kivy_garden.matplotlib==0.1.1.dev0` (`FigureCanvasKivyAgg`). User
+  confirmed this choice over `kivy_garden.graph` before install.
+- `/history` returns columnar JSON; `screens/history.py:_unpack_columnar`
+  converts to `{field: [values]}` once at load time; time-range changes
+  filter the cached arrays without refetching.
+- Plot tab content reflects the actual `DATA_COLUMNS` in
+  `lib/logger.py`, which is narrower than the original spec: no
+  target_temp/target_rh/target_mc (not logged), no exhaust RPM (logged
+  as PWM%), no rail currents, no LoRa RSSI. Those spec items stay as
+  TODOs for the Pi4 daemon, which will have SQLite and can derive
+  targets from the schedule snapshot.
+- Stage column is stored as a string; `_encode_stages` assigns stable
+  integer indices in first-seen order so the step chart monotonically
+  increases as the run progresses.
+- Timestamps in CSVs have two forms: `YYYY-MM-DD HH:MM:SS` (RTC set)
+  and `+NNNNs` (elapsed seconds from boot, RTC not set). Both are
+  parsed to datetime; x-axis is rendered as elapsed-from-first-sample
+  so the two forms are indistinguishable on the chart.
+- Android buildozer recipe patch for matplotlib + kivy_garden.matplotlib
+  is deferred to Phase 15.
+
 ---
 
 ## What still needs building
 
 In rough priority order:
 
-1. **`kiln_server/` Pi4 daemon** -- LoRa RX, SQLite storage, REST API, ntfy.sh alerts.
-   The Pi4 daemon must consume the new `faults` field in LoRa telemetry
-   packets (flat list of fault code strings) and expose a `fault_details`
-   list in its own `/status` endpoint so cottage-mode users see the same
-   fault info as direct-mode users.
+1. **`kiln_server/` Pi4 daemon** -- IMPLEMENTED, awaiting bench test. See
+   "Cottage-side architecture" above and `Specs/Pi4_demon_spec.md`. Outstanding:
+   - Enable SPI on bench Pi4, wire Ra-02 per spec, install deps
+   - Bench end-to-end test (Pico TX -> Pi4 daemon -> SQLite -> `/status`
+     and `/history` queries, + ntfy.sh push)
+   - Stretch: expose `fault_details` (not just the comma-joined `faults`
+     string) on `/status` so cottage-mode users see the same structured
+     fault info as direct-mode users. Today the daemon stores the flat
+     `faults` list from the LoRa packet and returns it as a JSON array;
+     tier/source/message enrichment would require a lookup table.
 2. **Kivy app** -- in progress, see "KivyApp/" section above
 
 ## Known firmware bugs
@@ -484,6 +519,21 @@ In rough priority order:
   must consume `stage_idx` (int) instead of `stage` (string) and
   `rh_lumber` / `rh_intake` instead of `humidity_lumber` /
   `humidity_intake`.
+- **CSV data logging: record keys didn't match DATA_COLUMNS (FIXED).**
+  `lib/schedule.py` `_log_data()` was writing a record with keys
+  `{mc_maple, mc_beech, heater, vents, ...}` that didn't match
+  `lib/logger.py` `DATA_COLUMNS` (`{mc_ch1, mc_ch2, heater_on,
+  vent_intake, vent_exhaust, ...}`). Also `ts` was never written.
+  Consequence: every pre-fix CSV has empty `ts`, `mc_ch1`, `mc_ch2`,
+  `circ_pct`, `vent_intake`, `vent_exhaust`, `heater_on` columns. Fixed:
+  (a) schedule.py record keys now match DATA_COLUMNS exactly,
+  (b) logger.data() auto-populates `ts` via `_timestamp()` when the
+  caller didn't set it, (c) vents (single is_open bool) map to 0/100
+  for both vent_intake/vent_exhaust since the hardware moves them as a
+  pair. Existing CSVs cannot be retroactively fixed; runs started after
+  this firmware deploy will plot correctly in the Kivy History screen.
+  The Kivy `_xs_numeric` row-index fallback remains as defence for
+  any remaining pre-fix CSVs.
 - **`lora.send_alert()` may have the same float-precision issue** if any
   alert message ever contains numeric data. Today most alerts pass plain
   short strings so this hasn't been observed, but the same fix pattern

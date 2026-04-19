@@ -99,7 +99,18 @@ class BottomNav(BoxLayout):
             self._on_select(tab.screen_name)
 
     def select(self, screen_name: str) -> None:
-        """Programmatically select a tab without firing on_select."""
+        """Programmatically select a tab without firing on_select.
+
+        ToggleButtonBehavior's group de-selection only runs on touch press
+        (`_do_press`), not on programmatic `state` writes. So we manually
+        put every other tab back to "normal" before flipping the target
+        to "down" - otherwise we end up with multiple tabs highlighted.
+        """
         tab = self._tabs.get(screen_name)
-        if tab is not None and tab.state != "down":
+        if tab is None:
+            return
+        for name, t in self._tabs.items():
+            if name != screen_name and t.state == "down":
+                t.state = "normal"
+        if tab.state != "down":
             tab.state = "down"

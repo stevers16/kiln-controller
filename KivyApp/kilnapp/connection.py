@@ -17,12 +17,24 @@ from typing import Callable, List
 from kivy.clock import Clock
 from kivy.logger import Logger
 
-from kilnapp.api.autodetect import DetectResult, MODE_OFFLINE, autodetect
+from kilnapp.api.autodetect import (
+    DetectResult,
+    MODE_COTTAGE,
+    MODE_DIRECT,
+    MODE_OFFLINE,
+    MODE_STA,
+    autodetect,
+)
 from kilnapp.api.client import KilnApiClient, call_async
 from kilnapp.storage import Settings, SettingsStore
 
 
 OFFLINE_RETRY_S = 30.0
+# Don't re-push the RTC more often than this - the Pico's drift over a
+# single session is small and the POST is a disruptive operation when the
+# Pico is busy. 6h gives "once per day when the user opens the app" plus a
+# safety margin for long-running sessions.
+RTC_SYNC_MIN_INTERVAL_S = 6 * 3600
 Listener = Callable[[DetectResult], None]
 
 
@@ -102,6 +114,55 @@ class ConnectionManager:
             # Schedule a retry if we ended up offline
             if self.last_result.mode == MODE_OFFLINE:
                 self._schedule_retry()
+            else:
+                # We have a live connection - push our wall clock up to
+                # the Pico if auto-sync is on and we haven't done it
+                # recently. The Pico has no battery-backed RTC, so its
+                # clock drifts or resets on every power cycle; without
+                # this the event log timestamps and ntfy alerts are
+                # junk. Pi4 mode is also OK to sync - the Pi4 /time
+                # endpoint is a no-op if present, or the call just
+                # fails harmlessly.
+                self._maybe_sync_rtc()
+
+        call_async(work, done)
+
+    def _maybe_sync_rtc(self) -> None:
+        """If auto-sync is enabled and it's been long enough since the
+        last sync, POST current unix time to the Pico's /time endpoint."""
+        if not self.settings.auto_sync_rtc:
+            return
+        # Only AP/STA modes support /time (Pi4 daemon is read-only).
+        if self.last_result.mode not in (MODE_DIRECT, MODE_STA):
+            return
+        now_s = int(time.time())
+        age = now_s - int(self.settings.last_rtc_sync or 0)
+        if age < RTC_SYNC_MIN_INTERVAL_S and self.settings.last_rtc_sync:
+            return
+        client_snapshot = self.client
+
+        def work():
+            return client_snapshot.set_time(now_s)
+
+        def done(_result, err):
+            if err is not None:
+                Logger.warning(f"kiln: RTC sync failed: {err}")
+                return
+            # Persist the successful sync time so we don't hammer /time
+            # on every reconnect.
+            self.settings = Settings(
+                pico_ip=self.settings.pico_ip,
+                pico_port=self.settings.pico_port,
+                pico_sta_ip=self.settings.pico_sta_ip,
+                pi4_ip=self.settings.pi4_ip,
+                pi4_port=self.settings.pi4_port,
+                api_key=self.settings.api_key,
+                connection_override=self.settings.connection_override,
+                last_rtc_sync=now_s,
+                auto_sync_rtc=self.settings.auto_sync_rtc,
+            )
+            self.store.save(self.settings)
+            Logger.info(f"kiln: RTC synced to unix ts {now_s}")
 
         call_async(work, done)
 

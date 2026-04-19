@@ -647,36 +647,42 @@ class KilnSchedule:
             self._logger.event("schedule", message)
 
     def _log_data(self, temp_c, rh_pct, sensor_data, mc_data, stage):
-        """Log a data record for this tick."""
+        """Log a data record for this tick.
+
+        Keys must match lib/logger.py DATA_COLUMNS exactly; any missing
+        key writes empty in the CSV, which breaks the Kivy history plots.
+        """
         if not self._logger:
             return
 
-        elapsed_ms = time.ticks_diff(time.ticks_ms(), self._stage_start_ms)
-        stage_h = elapsed_ms / 3_600_000
-
-        mc_maple = None
-        mc_beech = None
+        mc_ch1 = None
+        mc_ch2 = None
         if mc_data:
-            mc_maple = mc_data.get("ch1_mc_pct")
-            mc_beech = mc_data.get("ch2_mc_pct")
+            mc_ch1 = mc_data.get("ch1_mc_pct")
+            mc_ch2 = mc_data.get("ch2_mc_pct")
+
+        # Vents are driven as a pair (single is_open bool). Emit 0/100
+        # for both vent_intake and vent_exhaust as a percentage-of-travel
+        # proxy so the columns stay numeric and the plots render a step
+        # chart instead of blank.
+        vent_pos = 100 if self._vents.is_open else 0
+
+        # Circulation fan PWM percentage (0 when off).
+        circ_pct = self._circulation.speed_pct
 
         record = {
-            "stage":       self._stage_index,
-            "stage_type":  stage["stage_type"],
-            "temp_lumber": temp_c,
-            "rh_lumber":   rh_pct,
-            "temp_intake": sensor_data.get("temp_intake"),
-            "rh_intake":   sensor_data.get("rh_intake"),
-            "mc_maple":    mc_maple,
-            "mc_beech":    mc_beech,
-            "heater":      self._heater.is_on,
-            "vents":       self._vents.is_open,
-            "vent_reason": self._vent_reason,
-            "exhaust_pct": self._exhaust.speed_pct,
-            "target_temp": stage["target_temp_c"],
-            "target_rh":   stage["target_rh_pct"],
-            "target_mc":   stage.get("target_mc_pct"),
-            "stage_h":     round(stage_h, 2),
+            "stage":         self._stage_index,
+            "temp_lumber":   temp_c,
+            "rh_lumber":     rh_pct,
+            "temp_intake":   sensor_data.get("temp_intake"),
+            "rh_intake":     sensor_data.get("rh_intake"),
+            "mc_ch1":        mc_ch1,
+            "mc_ch2":        mc_ch2,
+            "exhaust_pct":   self._exhaust.speed_pct,
+            "circ_pct":      circ_pct,
+            "vent_intake":   vent_pos,
+            "vent_exhaust":  vent_pos,
+            "heater_on":     self._heater.is_on,
         }
 
         self._logger.data(record)

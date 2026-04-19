@@ -46,9 +46,11 @@ def _deobfuscate(obf: str) -> str:
 
 # Allowed values for connection_override
 OVERRIDE_AUTO = "auto"
-OVERRIDE_DIRECT = "direct"
+OVERRIDE_DIRECT = "direct"     # Prefer Pico AP, fall back to Pico STA
+OVERRIDE_STA = "sta"           # Pico STA only (useful when Pi4 is up on
+                               # the same LAN and Auto keeps landing on it)
 OVERRIDE_COTTAGE = "cottage"
-OVERRIDES = (OVERRIDE_AUTO, OVERRIDE_DIRECT, OVERRIDE_COTTAGE)
+OVERRIDES = (OVERRIDE_AUTO, OVERRIDE_DIRECT, OVERRIDE_STA, OVERRIDE_COTTAGE)
 
 
 @dataclass
