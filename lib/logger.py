@@ -42,6 +42,8 @@ class Logger:
         self._run_id = None  # suffix used for current per-run files (e.g.
                              # "20260419_1630" or "run_01286")
         self._write_failures = 0  # consecutive write failures
+        self._event_count = 0  # per-run event log line count (live)
+        self._data_rows = 0    # per-run data CSV row count excl. header (live)
 
         # Fault contract
         self.fault = False
@@ -144,6 +146,8 @@ class Logger:
             self._data_file.flush()
             self._run_active = True
             self._run_id = suffix
+            self._event_count = 0
+            self._data_rows = 0
             self.event("logger", "Run started")
             return True
         except Exception as e:
@@ -159,9 +163,23 @@ class Logger:
         """
         if self._run_active:
             self.event("logger", "Run ended")
+        # Persist line counts so /runs can serve them without rescanning
+        # each file. Silent fail - the kiln must keep running.
+        if self._run_active and self._run_id is not None:
+            try:
+                path = f"{self._sd.mount_point}/stats_{self._run_id}.json"
+                with open(path, "w") as f:
+                    f.write(
+                        '{"data_rows":%d,"event_count":%d}'
+                        % (self._data_rows, self._event_count)
+                    )
+            except Exception as e:
+                print(f"[logger] WARNING: stats write failed - {e}")
         self._close_run_files()
         self._run_active = False
         self._run_id = None
+        self._event_count = 0
+        self._data_rows = 0
 
     @property
     def run_id(self):
@@ -171,6 +189,16 @@ class Logger:
         run so clients can correlate /status with /runs unambiguously.
         """
         return self._run_id
+
+    @property
+    def event_count(self):
+        """Lines written to the active per-run event log."""
+        return self._event_count
+
+    @property
+    def data_rows(self):
+        """Rows written to the active per-run data CSV (excl. header)."""
+        return self._data_rows
 
     def check_health(self):
         """Periodic self-check. Returns True if faulted."""
@@ -207,6 +235,7 @@ class Logger:
             try:
                 self._event_file.write(line + "\n")
                 self._event_file.flush()
+                self._event_count += 1
             except Exception as e:
                 print(f"[logger] WARNING: SD write failed - {e}")
                 write_ok = False
@@ -260,6 +289,7 @@ class Logger:
         try:
             self._data_file.write(line + "\n")
             self._data_file.flush()
+            self._data_rows += 1
         except Exception as e:
             print(f"[logger] WARNING: SD write failed - {e}")
 

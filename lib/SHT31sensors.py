@@ -170,7 +170,7 @@ class SHT31Sensors:
                     self._logger.event(
                         "sensors",
                         f"Soft reset failed for {label}: {e}",
-                        level="WARNING",
+                        level="WARN",
                     )
 
     # ------------------------------------------------------------------
@@ -193,7 +193,7 @@ class SHT31Sensors:
                 self._logger.event(
                     "sensors",
                     f"I2C read failed for {label}: {e}",
-                    level="WARNING",
+                    level="WARN",
                 )
             return None
 
@@ -205,7 +205,7 @@ class SHT31Sensors:
                 self._logger.event(
                     "sensors",
                     f"CRC error on temperature for {label}",
-                    level="WARNING",
+                    level="WARN",
                 )
             return None
 
@@ -215,7 +215,7 @@ class SHT31Sensors:
                 self._logger.event(
                     "sensors",
                     f"CRC error on humidity for {label}",
-                    level="WARNING",
+                    level="WARN",
                 )
             return None
 
@@ -352,7 +352,7 @@ def test():
             sensors_logged._logger.event(
                 "sensors",
                 f"I2C read failed for {label}: simulated",
-                level="WARNING",
+                level="WARN",
             )
         return None
 
@@ -362,8 +362,8 @@ def test():
 
     passed = len(mock.calls) >= 1
     if passed:
-        passed = mock.calls[0][0] == "sensors" and mock.calls[0][2] == "WARNING"
-    print(f"  {'PASS' if passed else 'FAIL'} - logger.event() called with source='sensors', level='WARNING'")
+        passed = mock.calls[0][0] == "sensors" and mock.calls[0][2] == "WARN"
+    print(f"  {'PASS' if passed else 'FAIL'} - logger.event() called with source='sensors', level='WARN'")
     all_passed &= passed
 
     print(f"\n{'All tests passed!' if all_passed else 'Some tests FAILED'}")

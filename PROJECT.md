@@ -227,7 +227,7 @@ Reads temperature and relative humidity from two SHT31-D sensors over I2C.
 - Single-shot high-repeatability measurement (0x2C06), 15ms wait, 6-byte read
 - CRC-8 verification (poly 0x31, init 0xFF) on both temp and RH words
 - Silent fail: returns None for any sensor that fails (CRC, I2C, timeout)
-- Accepts optional `logger=None`; calls `logger.event("sensors", ..., level="WARNING")` on failures
+- Accepts optional `logger=None`; calls `logger.event("sensors", ..., level="WARN")` on failures
 - No third-party libraries -- SHT31 protocol implemented directly
 - Accepts optional `i2c` parameter for shared bus; creates its own I2C0 instance if not provided
 - When `i2c` is passed in, `sda_pin`/`scl_pin`/`freq` are ignored (bus already configured)
@@ -624,23 +624,23 @@ In rough priority order:
   short strings so this hasn't been observed, but the same fix pattern
   (hand-built compact JSON) should be applied for safety. Lower priority
   than the telemetry bug since it hasn't fired yet.
-- **`/runs` is slow (>5s with many historical runs).** `handle_runs` in
-  `main.py` (~line 1247) opens every `data_*.csv` and `event_*.txt` on
-  the SD card and reads each one line-by-line to compute `data_rows` and
-  `event_count`. Over SPI to a SD card with ~10+ historical runs this
-  easily exceeds the default 5s HTTP timeout. Client-side workaround:
-  the Kivy `runs()` method uses a 30s timeout. Server-side fix: drop
-  the line counting entirely (the Pi4 daemon will have SQLite and can
-  compute it properly) OR cache counts per run and update only when a
-  run ends. `size_bytes` from `uos.stat()` is already returned and is
-  cheap; that's enough for the runs list.
-- **`/alerts` WARN vs WARNING inconsistency.** `handle_alerts` in
-  `main.py` (line ~1010) accepts the query filter as `level=WARNING` but
-  parses log lines for `[WARN` and returns `"WARN"` in the response
-  rows' `level` field. The Kivy Alerts screen handles both forms, but
-  the firmware should pick one. Recommendation: standardise on `WARN`
-  everywhere (filter, log lines, response) since changing the on-disk
-  log format is the most painful option. Trivial fix once chosen.
+- **`/runs` is slow (>5s with many historical runs) (FIXED).**
+  `handle_runs` used to open every `data_*.csv` and `event_*.txt` on
+  the SD card and read each one line-by-line to compute `data_rows`
+  and `event_count`, which over SPI with ~10+ runs exceeded the
+  default 5s HTTP timeout. Fixed by caching counts per run: `Logger`
+  now tracks `event_count` / `data_rows` live during a run and writes
+  a tiny `stats_<rid>.json` on `end_run()`. `handle_runs` reads the
+  stats file (cheap) instead of scanning lines; the active run is
+  served from the logger's live counters; legacy runs without a
+  stats file show 0 (acceptable - Pi4 daemon will have exact counts
+  via SQLite).
+- **`/alerts` WARN vs WARNING inconsistency (FIXED).** Standardised on
+  `WARN` everywhere: filter value, all `logger.event(..., level=...)`
+  callers in `lib/` and `main.py`, and the Kivy filter map. Log-line
+  inclusion check (`"[WARN" not in line`) is a prefix match, so legacy
+  `[WARNING]` lines already on the SD card still appear in /alerts
+  responses; only new lines will consistently read `[WARN ]`.
 - **Schedule alert/fault mixing (FIXED).** `_last_alert_ts` used to mix
   lifecycle codes with real fault codes; the Kivy app classified them
   client-side. Fixed by `error_checking_spec.md` implementation: every

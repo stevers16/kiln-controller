@@ -1124,11 +1124,11 @@ async def handle_alerts(query, writer):
                     line = line.strip()
                     if not line:
                         continue
-                    # Only include WARNING and ERROR lines
+                    # Only include WARN and ERROR lines
                     if "[WARN" not in line and "[ERROR" not in line:
                         continue
                     if level_filter:
-                        if level_filter == "WARNING" and "[WARN" not in line:
+                        if level_filter == "WARN" and "[WARN" not in line:
                             continue
                         if level_filter == "ERROR" and "[ERROR" not in line:
                             continue
@@ -1237,13 +1237,19 @@ async def handle_runs(writer):
         return
 
     files = sdcard.listdir()
-    # Gather run IDs from data CSV filenames
+    # Gather run IDs from data CSV filenames; track which runs have a
+    # cached stats file so we can skip line-counting.
     run_ids = []
+    stats_set = set()
     for f in files:
         if f.startswith("data_") and f.endswith(".csv"):
             rid = f.replace("data_", "").replace(".csv", "")
             run_ids.append(rid)
+        elif f.startswith("stats_") and f.endswith(".json"):
+            stats_set.add(f[len("stats_"):-len(".json")])
     run_ids.sort(reverse=True)
+
+    active_rid = logger.run_id if logger is not None else None
 
     runs = []
     for rid in run_ids:
@@ -1259,11 +1265,6 @@ async def handle_runs(writer):
             stat = uos.stat(f"{sdcard.mount_point}/{data_name}")
             size += stat[6]
             data_mtime = stat[8]
-            # Count data rows (subtract 1 for header)
-            with open(f"{sdcard.mount_point}/{data_name}", "r") as f:
-                for _ in f:
-                    data_rows += 1
-            data_rows = max(0, data_rows - 1)
         except Exception:
             pass
 
@@ -1271,11 +1272,24 @@ async def handle_runs(writer):
             stat = uos.stat(f"{sdcard.mount_point}/{event_name}")
             size += stat[6]
             event_mtime = stat[8]
-            with open(f"{sdcard.mount_point}/{event_name}", "r") as f:
-                for _ in f:
-                    event_count += 1
         except Exception:
             pass
+
+        # Row/event counts: prefer live counters for the active run,
+        # then the cached stats file, otherwise leave at 0 (legacy run
+        # without a stats file - acceptable; the Pi4 daemon will have
+        # exact counts via SQLite).
+        if rid == active_rid and logger is not None:
+            data_rows = logger.data_rows
+            event_count = logger.event_count
+        elif rid in stats_set:
+            try:
+                with open(f"{sdcard.mount_point}/stats_{rid}.json", "r") as f:
+                    stats = json.loads(f.read())
+                data_rows = int(stats.get("data_rows", 0))
+                event_count = int(stats.get("event_count", 0))
+            except Exception:
+                pass
 
         # Format started_at from run ID (YYYYMMDD_HHMM)
         started = rid
@@ -2325,7 +2339,7 @@ async def main():
     if missing:
         boot_msg += f" DEGRADED -- missing: {missing}"
     if logger is not None:
-        logger.event("main", boot_msg, level="WARNING" if missing else "INFO")
+        logger.event("main", boot_msg, level="WARN" if missing else "INFO")
     else:
         print(f"[main] {boot_msg}")
 

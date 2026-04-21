@@ -293,7 +293,7 @@ class LoRa:
                         self._logger.event(
                             "lora",
                             f"TX timeout after {elapsed}ms",
-                            level="WARNING"
+                            level="WARN"
                         )
                     self.fault = True
                     self.fault_code = "LORA_TIMEOUT"
@@ -353,7 +353,7 @@ class LoRa:
             if self._logger:
                 self._logger.event("lora",
                                    f"Telemetry serialise failed - {e}",
-                                   level="WARNING")
+                                   level="WARN")
             return False
 
         return self.send(payload)
@@ -379,7 +379,7 @@ class LoRa:
             if self._logger:
                 self._logger.event("lora",
                                    f"Alert serialise failed - {e}",
-                                   level="WARNING")
+                                   level="WARN")
             return False
 
         for attempt in range(1, ALERT_RETRIES + 1):
@@ -394,7 +394,7 @@ class LoRa:
         if self._logger:
             self._logger.event("lora",
                                f"Alert {code} failed after {ALERT_RETRIES} attempts",
-                               level="WARNING")
+                               level="WARN")
         return False
 
     def reset(self):

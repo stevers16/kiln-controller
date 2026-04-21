@@ -147,7 +147,7 @@ class MoistureProbe:
                     self._logger.event(
                         "moisture",
                         f"Unknown species '{sp}' -- using 0.0 correction",
-                        level="WARNING",
+                        level="WARN",
                     )
 
         # Per-channel calibration offsets (MC% points, loaded from SD)
@@ -247,7 +247,7 @@ class MoistureProbe:
 
         dict keys: "ch1_mc_pct", "ch2_mc_pct", "ch1_ohms", "ch2_ohms"
         MC% values are float or None.
-        Logs WARNING via logger if either channel returns None.
+        Logs WARN via logger if either channel returns None.
         """
         res = self.read_resistance()
         ch1_ohms = res["ch1_ohms"]
@@ -267,13 +267,13 @@ class MoistureProbe:
                 self._logger.event(
                     "moisture",
                     "Ch1 probe disconnected or open circuit",
-                    level="WARNING",
+                    level="WARN",
                 )
             else:
                 self._logger.event(
                     "moisture",
                     f"Ch1 resistance out of range: {ch1_ohms:.0f} ohm",
-                    level="WARNING",
+                    level="WARN",
                 )
 
         if ch2_mc is None and self._logger:
@@ -281,13 +281,13 @@ class MoistureProbe:
                 self._logger.event(
                     "moisture",
                     "Ch2 probe disconnected or open circuit",
-                    level="WARNING",
+                    level="WARN",
                 )
             else:
                 self._logger.event(
                     "moisture",
                     f"Ch2 resistance out of range: {ch2_ohms:.0f} ohm",
-                    level="WARNING",
+                    level="WARN",
                 )
 
         # Track consecutive None readings per channel (N=3 to latch)
@@ -485,19 +485,19 @@ def test():
     print(f"  {'PASS' if passed else 'FAIL'} - Logger: init event logged")
     all_passed &= passed
 
-    # Check WARNING on None readings (use the mock logger probe as-is;
+    # Check WARN on None readings (use the mock logger probe as-is;
     # if probes are connected, force a None by testing resistance_to_mc)
     mock.calls.clear()
     # Simulate: if probes happen to return None, logger should warn
     # We can at least verify the mock pattern works
     if logged_probe.read()["ch1_mc_pct"] is None:
-        warn_logged = any(c[2] == "WARNING" for c in mock.calls)
+        warn_logged = any(c[2] == "WARN" for c in mock.calls)
         print(
-            f"  {'PASS' if warn_logged else 'FAIL'} - Logger: WARNING on None reading"
+            f"  {'PASS' if warn_logged else 'FAIL'} - Logger: WARN on None reading"
         )
         all_passed &= warn_logged
     else:
-        print("  INFO  - Logger WARNING test: probes connected, no None to trigger")
+        print("  INFO  - Logger WARN test: probes connected, no None to trigger")
 
     # --- Test 9: set_calibration() offsets ---
     mock2 = MockLogger()

@@ -151,8 +151,8 @@ class KilnApiClient:
     ) -> Any:
         """GET /alerts. Returns {alerts: [...], count: int}.
 
-        - level: "WARNING" or "ERROR" (note: filter uses 'WARNING' but
-          alert rows return 'WARN' in their `level` field).
+        - level: "WARN" or "ERROR". Filter and response level fields
+          both use "WARN" (standardised 2026-04-21).
         - run: run id (e.g. '20260408_1730') or None for the current run.
         """
         qs_parts = [f"limit={int(limit)}"]
