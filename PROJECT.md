@@ -619,11 +619,15 @@ In rough priority order:
   this firmware deploy will plot correctly in the Kivy History screen.
   The Kivy `_xs_numeric` row-index fallback remains as defence for
   any remaining pre-fix CSVs.
-- **`lora.send_alert()` may have the same float-precision issue** if any
-  alert message ever contains numeric data. Today most alerts pass plain
-  short strings so this hasn't been observed, but the same fix pattern
-  (hand-built compact JSON) should be applied for safety. Lower priority
-  than the telemetry bug since it hasn't fired yet.
+- **`lora.send_alert()` float-precision risk (FIXED).** `send_alert()`
+  was wrapping `{ts, code, message}` through `json.dumps` which has the
+  same float-precision / whitespace issue that bit telemetry, AND the
+  JSON envelope was routed through the Pi4's telemetry parser (not
+  alert parser), so `notifier.send()` never fired even when called.
+  Fixed by emitting the `ALERT;<code>;<message>` wire format directly
+  (no JSON), matching what `schedule._send_alert()` already sends via
+  `lora.send()`. If `message` already starts with `ALERT;` the method
+  passes it through verbatim so pre-formatted wire strings still work.
 - **`/runs` is slow (>5s with many historical runs) (FIXED).**
   `handle_runs` used to open every `data_*.csv` and `event_*.txt` on
   the SD card and read each one line-by-line to compute `data_rows`
@@ -651,18 +655,16 @@ In rough priority order:
   (`fault`/`notice`/`info`) is tagged at source. The Kivy app reads
   `tier` from the server when present and falls back to its local
   `FAULT_CODES`/`NOTICE_CODES` tables for older firmware.
-- **Faults do not trigger ntfy.sh pushes (TODO).** Faults ride inside
-  the telemetry packet's `faults` array (e.g. `SD_FAIL`,
-  `LORA_TIMEOUT`), so the Pi4 daemon stores them but never generates a
-  phone notification -- only `ALERT;...` packets currently flow through
-  `notifier.send()`. Fix on the firmware side: when
-  `_collect_module_faults()` detects a fault code that was NOT active
-  on the previous tick (i.e. newly-active), emit a matching
-  `ALERT;<code>;stage=<n>;temp=<t>;rh=<r>` via `lora.send_alert()`.
-  Reuse the existing per-code 30-min suppression already used by
-  `schedule._send_alert()` so a flapping fault does not spam the phone.
-  Keep the `faults` array in telemetry as-is so the Kivy Dashboard
-  continues to show the live fault set regardless of alert delivery.
-  Daemon-side diffing was considered but rejected: it would lose state
-  on daemon restart (causing spurious "new" bursts) and delay
+- **Faults do not trigger ntfy.sh pushes (FIXED).** Fixed on the
+  firmware side via `_emit_new_fault_alerts()` in `main.py`: each
+  control-loop tick (after `_collect_module_faults`) diffs the
+  current fault/notice code set against the previous tick's set and
+  emits `ALERT;<code>;stage=<n>;temp=<t>;rh=<r>;source=<src>` via
+  `lora.send_alert()` for any newly-active code. Per-code 30-min
+  suppression (`FAULT_ALERT_SUPPRESS_MS`) mirrors
+  `schedule._send_alert()` so a flapping fault does not spam the
+  phone. The telemetry `faults` array remains unchanged so the Kivy
+  Dashboard still sees the live fault set regardless of alert
+  delivery. Daemon-side diffing was rejected: it would lose state on
+  daemon restart (causing spurious "new" bursts) and delay
   notifications by up to one telemetry interval (~30s).

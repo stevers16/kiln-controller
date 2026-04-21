@@ -409,6 +409,15 @@ def _uptime_s():
 # Status cache
 # -----------------------------------------------------------------------
 
+# Fault -> ntfy bridge state. Module faults live inside the telemetry
+# `faults` array; without an explicit ALERT;... packet the Pi4 daemon
+# stores them but never pushes an ntfy notification. We diff the active
+# fault set each tick and emit ALERT;... for any newly-active code,
+# rate-limited per-code to mirror schedule._send_alert()'s suppression.
+_last_fault_codes = set()
+_fault_alert_sent_ms = {}
+FAULT_ALERT_SUPPRESS_MS = 30 * 60 * 1000  # 30 min per code
+
 
 def _collect_module_faults():
     """Poll all modules for fault state and return aggregated results.
@@ -623,6 +632,61 @@ def _update_status_cache():
         "fault_details": mod_details,
         "degraded_modules": _missing_modules(),
     }
+
+    _emit_new_fault_alerts(mod_details)
+
+
+def _emit_new_fault_alerts(mod_details):
+    """Push ALERT;... packets for fault/notice codes that are newly
+    active since the previous tick, so the Pi4 daemon triggers an ntfy
+    notification. Per-code 30-min suppression prevents a flapping fault
+    from spamming the phone. Schedule-level alerts already go out via
+    schedule._send_alert(); this covers module fault-contract codes.
+    """
+    global _last_fault_codes
+    if lora is None:
+        return
+
+    current = set()
+    to_emit = []
+    now = time.ticks_ms()
+    for fd in mod_details:
+        if fd.get("tier") not in ("fault", "notice"):
+            continue
+        code = fd.get("code")
+        if not code:
+            continue
+        current.add(code)
+        if code in _last_fault_codes:
+            continue  # was active on the previous tick - not newly active
+        last = _fault_alert_sent_ms.get(code)
+        if last is not None and time.ticks_diff(now, last) < FAULT_ALERT_SUPPRESS_MS:
+            continue
+        to_emit.append(fd)
+
+    for fd in to_emit:
+        code = fd["code"]
+        parts = []
+        stage = _status_cache.get("stage_index")
+        if stage is not None:
+            parts.append(f"stage={stage}")
+        temp = _status_cache.get("temp_lumber")
+        if isinstance(temp, (int, float)):
+            parts.append(f"temp={temp:.1f}")
+        rh = _status_cache.get("rh_lumber")
+        if isinstance(rh, (int, float)):
+            parts.append(f"rh={rh:.1f}")
+        src = fd.get("source")
+        if src:
+            parts.append(f"source={src}")
+        msg = ";".join(parts)
+        try:
+            if lora.send_alert(code, msg):
+                _fault_alert_sent_ms[code] = time.ticks_ms()
+        except Exception as e:
+            print(f"[main] fault ALERT send failed: {e}")
+
+    _last_fault_codes = current
 
 
 def _missing_modules():

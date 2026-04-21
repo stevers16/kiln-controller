@@ -360,27 +360,25 @@ class LoRa:
 
     def send_alert(self, code, message):
         """
-        Transmit a fault alert. Retries up to ALERT_RETRIES times
-        with ALERT_RETRY_S spacing on failure.
+        Transmit a fault alert as 'ALERT;<code>;<message>' over LoRa with
+        up to ALERT_RETRIES retries spaced ALERT_RETRY_S apart.
+
+        Wire format matches the Pi4 daemon's alert parser:
+            ALERT;<code>;stage=<n>;temp=<t>;rh=<r>[;extra]
+
+        If `message` already starts with 'ALERT;' it is sent verbatim so
+        callers can pre-build the full wire string. Otherwise the
+        ALERT;<code>;<message> envelope is added here. No JSON -- avoids
+        the MicroPython json.dumps float-precision issue that bit the
+        telemetry path.
 
         Alert codes: OVER_TEMP, SENSOR_FAIL, FAN_STALL, HEATER_TIMEOUT,
                      SD_FAIL, LORA_TIMEOUT, STAGE_COMPLETE, SCHEDULE_DONE
         """
-        alert = {
-            "ts": time.time(),
-            "code": code,
-            "message": message,
-        }
-
-        try:
-            payload = json.dumps(alert).encode()
-        except Exception as e:
-            print(f"LoRa: alert serialise failed - {e}")
-            if self._logger:
-                self._logger.event("lora",
-                                   f"Alert serialise failed - {e}",
-                                   level="WARN")
-            return False
+        if isinstance(message, str) and message.startswith("ALERT;"):
+            payload = message.encode()
+        else:
+            payload = f"ALERT;{code};{message}".encode()
 
         for attempt in range(1, ALERT_RETRIES + 1):
             if self.send(payload):
@@ -496,13 +494,16 @@ def test():
     print(f"  {'PASS' if passed else 'FAIL'} - send_alert returns True")
     all_passed &= passed
 
-    # --- Test 10: alert payload contains code ---
+    # --- Test 10: alert payload is 'ALERT;<code>;<message>' string ---
     try:
-        decoded = json.loads(lora.last_payload)
-        passed = decoded["code"] == "OVER_TEMP" and "message" in decoded
+        decoded = lora.last_payload.decode()
+        passed = (
+            decoded.startswith("ALERT;OVER_TEMP;")
+            and "Temp 85 deg C exceeds limit" in decoded
+        )
     except Exception:
         passed = False
-    print(f"  {'PASS' if passed else 'FAIL'} - Alert payload has code and message")
+    print(f"  {'PASS' if passed else 'FAIL'} - Alert payload is ALERT;<code>;<message>")
     all_passed &= passed
 
     # --- Test 11: logger integration ---
