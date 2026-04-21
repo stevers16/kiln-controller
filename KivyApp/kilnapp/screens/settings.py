@@ -7,7 +7,7 @@ later phases when the dependent features land.
 
 from __future__ import annotations
 
-from typing import Optional
+from typing import Callable, Optional
 
 from kivy.graphics import Color, Rectangle
 from kivy.uix.boxlayout import BoxLayout
@@ -17,6 +17,7 @@ from kivy.uix.scrollview import ScrollView
 from kivy.uix.screenmanager import Screen
 
 from kilnapp import theme
+from kilnapp.api.autodetect import DetectResult, MODE_DIRECT, MODE_OFFLINE, MODE_STA
 from kilnapp.api.client import (
     AuthError,
     KilnApiClient,
@@ -73,9 +74,17 @@ def _button(text: str, on_press) -> Button:
 
 
 class SettingsScreen(Screen):
-    def __init__(self, connection: ConnectionManager, **kwargs):
+    def __init__(
+        self,
+        connection: ConnectionManager,
+        on_navigate: Optional[Callable[[str], None]] = None,
+        **kwargs,
+    ):
         super().__init__(name="settings", **kwargs)
         self.connection = connection
+        self._on_navigate = on_navigate
+        self._current_mode: str = MODE_OFFLINE
+        self.connection.add_listener(self._on_connection_change)
 
         # Background
         with self.canvas.before:
@@ -137,6 +146,12 @@ class SettingsScreen(Screen):
         show_box.add_widget(_button("Show / hide key", self._toggle_show_key))
         form.add_widget(show_box)
 
+        # ---- AP-only tools -----------------------------------------------
+        form.add_widget(_section_header("Tools (Direct only)"))
+        self.schedules_btn = _button("Schedules", self._goto_schedules)
+        form.add_widget(self.schedules_btn)
+        self._apply_tools_gate()
+
         # ---- Save + status -----------------------------------------------
         form.add_widget(_section_header(""))
         form.add_widget(_button("Save and reconnect", self._save))
@@ -155,6 +170,27 @@ class SettingsScreen(Screen):
 
         scroll.add_widget(form)
         self.add_widget(scroll)
+
+    # ---- AP-only tools gating ---------------------------------------------
+
+    def _on_connection_change(self, result: DetectResult) -> None:
+        self._current_mode = result.mode
+        # `schedules_btn` doesn't exist until build() has run. Guard for
+        # the race where the connection manager fires its first detect
+        # before the widget tree is finished wiring up.
+        if hasattr(self, "schedules_btn"):
+            self._apply_tools_gate()
+
+    def _apply_tools_gate(self) -> None:
+        direct = self._current_mode in (MODE_DIRECT, MODE_STA)
+        self.schedules_btn.disabled = not direct
+        self.schedules_btn.opacity = 1.0 if direct else 0.5
+
+    def _goto_schedules(self) -> None:
+        if self._current_mode not in (MODE_DIRECT, MODE_STA):
+            return
+        if self._on_navigate is not None:
+            self._on_navigate("schedules")
 
     # ---- helpers -----------------------------------------------------------
 

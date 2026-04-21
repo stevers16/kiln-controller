@@ -224,6 +224,18 @@ class KilnApiClient:
         """
         return self._get(f"/schedules/{filename}")
 
+    def schedule_put(self, filename: str, schedule: dict) -> Any:
+        """PUT /schedules/{filename}. Body is the full schedule dict
+        ({name, species, thickness_in, stages: [...]}). Pico rejects
+        built-in filenames (403) and validates the stage list.
+        """
+        return self._request("PUT", f"/schedules/{filename}", json=schedule)
+
+    def schedule_delete(self, filename: str) -> Any:
+        """DELETE /schedules/{filename}. Pico rejects built-in
+        filenames (403) and returns 404 if the file is missing."""
+        return self._request("DELETE", f"/schedules/{filename}")
+
     # ---- run control (Pico AP only - all require auth) --------------------
 
     def run_start(

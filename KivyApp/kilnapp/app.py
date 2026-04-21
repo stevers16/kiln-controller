@@ -23,6 +23,8 @@ from kilnapp.screens.alerts import AlertsScreen
 from kilnapp.screens.dashboard import DashboardScreen
 from kilnapp.screens.history import HistoryScreen
 from kilnapp.screens.runs import RunsScreen
+from kilnapp.screens.schedule_editor import ScheduleEditorScreen
+from kilnapp.screens.schedules import SchedulesScreen
 from kilnapp.screens.settings import SettingsScreen
 from kilnapp.screens.start_run import StartRunScreen
 from kilnapp.storage import SettingsStore
@@ -41,6 +43,8 @@ TAB_TITLES = {
     "runs": "Runs",
     "settings": "Settings",
     "start_run": "Start Run",
+    "schedules": "Schedules",
+    "schedule_editor": "Schedule Editor",
 }
 
 
@@ -85,7 +89,12 @@ class KilnApp(App):
         self.screen_manager.add_widget(
             RunsScreen(connection=self.connection, on_navigate=self._navigate_to)
         )
-        self.screen_manager.add_widget(SettingsScreen(connection=self.connection))
+        self.screen_manager.add_widget(
+            SettingsScreen(
+                connection=self.connection,
+                on_navigate=self._navigate_to,
+            )
+        )
         # AP-only Start Run wizard. Not a bottom-nav tab; reached from the
         # Dashboard's "Start Run" action button.
         self.screen_manager.add_widget(
@@ -94,6 +103,18 @@ class KilnApp(App):
                 on_finish=lambda: self._navigate_to("dashboard"),
             )
         )
+        # AP-only Schedules list + editor. Reached from Settings.
+        self.screen_manager.add_widget(
+            SchedulesScreen(
+                connection=self.connection,
+                on_finish=lambda: self._navigate_to("settings"),
+            )
+        )
+        self.schedule_editor_screen = ScheduleEditorScreen(
+            connection=self.connection,
+            on_finish=lambda: self._navigate_to("schedules"),
+        )
+        self.screen_manager.add_widget(self.schedule_editor_screen)
         root.add_widget(self.screen_manager)
 
         # Bottom nav
@@ -134,7 +155,11 @@ class KilnApp(App):
             if run_id is not None:
                 self.alerts_screen.preselect_run(run_id)
         self._switch_screen(screen_name)
-        self.bottom_nav.select(screen_name)
+        # Only the five bottom-nav tabs should influence the nav highlight.
+        # Reached-via-screen transitions (Start Run, Schedules, Schedule
+        # Editor) keep whichever tab the user came from highlighted.
+        if screen_name in ("dashboard", "history", "alerts", "runs", "settings"):
+            self.bottom_nav.select(screen_name)
 
     def _on_connection_change(self, result: DetectResult) -> None:
         # Map detection result to indicator state

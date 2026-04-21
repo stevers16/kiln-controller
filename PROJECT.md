@@ -449,7 +449,7 @@ user testing and approval after every phase. Plan file:
 | 6 | Runs screen + run detail view + delete | Approved |
 | 7 | History graphs (5 plot tabs) | Approved |
 | 8 | Start Run flow (AP only) | Approved |
-| 9 | Schedules viewer + editor (AP only) | Not started |
+| 9 | Schedules viewer + editor (AP only) | Awaiting approval |
 | 10 | System Test screen (AP only) | Not started |
 | 11 | Logs screen - view/download remaining (delete moved to Phase 6) | Not started |
 | 12 | Moisture Calibration (AP only) | Not started |
@@ -522,6 +522,67 @@ user testing and approval after every phase. Plan file:
   up (Cottage mode cannot start runs).
 - Checklist state resets on `on_pre_enter`; a user returning to the
   wizard after a cancel starts fresh.
+
+### Phase 9 implementation notes
+- Two new screens under `KivyApp/kilnapp/screens/`:
+  `schedules.py` (list) and `schedule_editor.py` (viewer / editor).
+  Both AP/STA only; no Cottage-mode entry points.
+- Entry point: a new "Tools (Direct only)" section on the Settings
+  screen with a Schedules button. The spec allows "accessed from the
+  Dashboard or Settings" for AP-only screens; Settings keeps the
+  Dashboard uncluttered. The button is greyed out in Cottage/Offline
+  via a connection listener.
+- `app.py` registers both screens alongside the existing five nav tabs.
+  Neither is in `BottomNav`. `_navigate_to()` was updated to only call
+  `bottom_nav.select()` for the five real tabs, so the user's original
+  tab stays highlighted while the editor is up (same pattern as
+  Start Run in Phase 8).
+- Schedule list rows (`_ScheduleRow`) show name + species/thickness +
+  stage count + size + a BUILT-IN badge for factory schedules. Four
+  per-row actions: View, Duplicate, Edit, Delete. Edit/Delete are
+  disabled on built-ins; the Pico rejects both server-side (403), so
+  disabling client-side is belt-and-braces. The user-facing
+  disambiguation matches the spec: "Duplicate to edit".
+- Four editor modes: `view`, `edit`, `duplicate`, `new`. `load()` is
+  called by the Schedules screen via a direct method call on the
+  editor instance (fetched from the ScreenManager) before switching
+  screens, because `ScreenManager.current = ...` doesn't carry
+  parameters the way `_navigate_to` does for the bottom-nav tabs.
+- Filename handling: auto-derived from schedule name via `_slugify()`
+  in new/duplicate mode (reactive to name edits until the user
+  manually overrides the field). Locked in edit mode to prevent
+  accidental renames creating orphan files on the SD card. `.json`
+  suffix is appended automatically on save if missing.
+- Thickness is a spinner with `0.5 / 1 / custom`. A custom numeric
+  field appears only when `custom` is selected; it collapses to
+  `height=0` otherwise so it doesn't occupy space.
+- **Deviation from spec and plan**: the stage table uses a plain
+  `BoxLayout` inside a `ScrollView`, not a `RecycleView`. Rationale:
+  Kivy's RecycleView recycles row widgets by design, which mangles
+  per-row `TextInput` focus and loses in-progress edits on scroll
+  (well-documented Kivy pitfall). Typical schedules have <12 stages,
+  so performance is not a concern. Each `_StageRow` holds direct
+  references to its own TextInputs/Spinners and implements
+  `collect()` for save-time validation.
+- Client-side validation in `_StageRow.collect()` + `_collect()`
+  mirrors the server-side checks in `main.py handle_schedule_put` so
+  the user sees inline errors rather than a 400 from the server:
+  drying stages require numeric target_mc_pct, equalizing/
+  conditioning forbid it, temps clamp to 30-80 C, RH to 20-95 %,
+  min/max duration numeric with max >= min (or blank for
+  unlimited). Save still handles 400 gracefully if the Pico later
+  adds stricter rules.
+- `_StageRow._on_type_change()` enforces the MC% rule live: switching
+  a row from drying to equalizing/conditioning clears + disables the
+  MC field; switching back re-enables it. Also applied on initial
+  load so an incoming equalizing stage has MC correctly greyed out.
+- `_duplicate_filename()` handles the "Duplicate twice in a row" case
+  by appending a digit (`maple_05in_copy` -> `maple_05in_copy2`).
+  Schedule name gets a "(copy)" suffix too so the user sees which
+  one they're editing.
+- `schedule_put` + `schedule_delete` added to
+  `KivyApp/kilnapp/api/client.py`. Both use `_request()` directly
+  (PUT / DELETE aren't wrapped by the `_post` helper).
 
 ### Phase 7-adjacent fixes shipped with the phase
 Several cross-cutting issues surfaced during Phase 7 testing and got
