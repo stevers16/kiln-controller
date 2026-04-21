@@ -583,16 +583,11 @@ class DashboardScreen(Screen):
         )
 
     def _on_start_pressed(self) -> None:
-        # Phase 8 will replace this with a multi-step Start Run wizard
-        # (schedule picker, run label, pre-run checklist, confirmation).
-        # Until then, do nothing destructive - just show a notice.
-        confirm(
-            "Start Run",
-            "The Start Run wizard will be added in Phase 8. To start a run "
-            "for now, use the Pico REST API directly.",
-            on_confirm=lambda: None,
-            confirm_text="OK",
-        )
+        # Open the three-step Start Run wizard (AP-only screen). The wizard
+        # handles schedule pick, run label, checklist, and the actual POST;
+        # it calls on_finish() to return us here.
+        if self._on_navigate is not None:
+            self._on_navigate("start_run")
 
     def _on_stop_pressed(self) -> None:
         confirm(

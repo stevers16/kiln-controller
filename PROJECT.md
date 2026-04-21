@@ -447,8 +447,8 @@ user testing and approval after every phase. Plan file:
 | 4 | Dashboard banners + AP-mode action buttons (start/stop/advance) | Approved |
 | 5 | Alerts screen | Approved |
 | 6 | Runs screen + run detail view + delete | Approved |
-| 7 | History graphs (5 plot tabs) | Awaiting approval |
-| 8 | Start Run flow (AP only) | Not started |
+| 7 | History graphs (5 plot tabs) | Approved |
+| 8 | Start Run flow (AP only) | Approved |
 | 9 | Schedules viewer + editor (AP only) | Not started |
 | 10 | System Test screen (AP only) | Not started |
 | 11 | Logs screen - view/download remaining (delete moved to Phase 6) | Not started |
@@ -473,20 +473,105 @@ user testing and approval after every phase. Plan file:
   converts to `{field: [values]}` once at load time; time-range changes
   filter the cached arrays without refetching.
 - Plot tab content reflects the actual `DATA_COLUMNS` in
-  `lib/logger.py`, which is narrower than the original spec: no
-  target_temp/target_rh/target_mc (not logged), no exhaust RPM (logged
-  as PWM%), no rail currents, no LoRa RSSI. Those spec items stay as
-  TODOs for the Pi4 daemon, which will have SQLite and can derive
-  targets from the schedule snapshot.
-- Stage column is stored as a string; `_encode_stages` assigns stable
-  integer indices in first-seen order so the step chart monotonically
-  increases as the run progresses.
+  `lib/logger.py`. Target lines (target_temp/target_rh/target_mc) are
+  not logged today; they remain TODOs for the Pi4 daemon which can
+  derive them from the schedule snapshot.
+- Stage column is stored as an int by current firmware (stage index);
+  `_encode_stages` still accepts string labels from older CSVs and
+  assigns stable indices in first-seen order.
 - Timestamps in CSVs have two forms: `YYYY-MM-DD HH:MM:SS` (RTC set)
   and `+NNNNs` (elapsed seconds from boot, RTC not set). Both are
   parsed to datetime; x-axis is rendered as elapsed-from-first-sample
-  so the two forms are indistinguishable on the chart.
+  so the two forms are indistinguishable on the chart. The
+  `_xs_numeric` fallback uses row indices when timestamps are all
+  None (defence against pre-fix CSVs with empty ts columns).
+- Auto-refresh: 30s on the History screen when the selected run is
+  the one /status reports as active. Cancelled on_leave to avoid
+  background polling.
 - Android buildozer recipe patch for matplotlib + kivy_garden.matplotlib
   is deferred to Phase 15.
+
+### Phase 8 implementation notes
+- `screens/start_run.py` is a single Screen containing a scrollable
+  three-section layout (schedule picker / run label / checklist) with
+  a Start Run footer button. Not a wizard with Next/Back buttons -
+  scrolling through the three sections is simpler on a phone and keeps
+  the user's prior step answers visible while they pick later ones.
+- Registered in `app.py` alongside the five nav tabs but deliberately
+  not added to `BottomNav`. `BottomNav.select("start_run")` is a no-op
+  (lookup miss), so the Dashboard tab stays highlighted while the
+  wizard is up - which also signals "you came from here" to the user.
+- Dashboard's `_on_start_pressed` now calls `on_navigate("start_run")`
+  instead of showing the Phase 8 placeholder dialog.
+- Species + thickness shortcut buttons map to built-in filenames via
+  `SHORTCUT_FILENAMES`. Non-matching combos (Other / Custom) leave the
+  selection blank and ask the user to pick manually from the spinner.
+- The spinner shows every schedule on the Pico (`GET /schedules`) as
+  `"<name> (<filename>)"` so user-created schedules are reachable.
+  Filename is recovered by splitting on the trailing `" ("`.
+- Duration range on the preview panel is derived from summed
+  `min_duration_h` / `max_duration_h` across stages; open-ended stages
+  (null `max_duration_h`) render as `"N+ h"`.
+- `POST /run/start` now carries an optional `label` field. Current
+  Pico firmware ignores it (`data.get("schedule", default)` is the
+  only field consumed), but the wire format is future-proofed for a
+  Pi4 daemon / firmware that will record operator-supplied run
+  labels alongside the run record.
+- Connection-mode listener on the wizard returns the user to the
+  Dashboard if the app drops out of AP/STA mode while the screen is
+  up (Cottage mode cannot start runs).
+- Checklist state resets on `on_pre_enter`; a user returning to the
+  wizard after a cancel starts fresh.
+
+### Phase 7-adjacent fixes shipped with the phase
+Several cross-cutting issues surfaced during Phase 7 testing and got
+fixed in the same batch (rather than waiting for their nominal phase):
+
+- **CSV data logging schema mismatch (FIRMWARE).** `lib/schedule.py`
+  `_log_data()` record keys didn't match `lib/logger.py` `DATA_COLUMNS`
+  (wrote `mc_maple`/`mc_beech`/`heater`/`vents`, not `mc_ch1`/`mc_ch2`/
+  `heater_on`/`vent_intake`/`vent_exhaust`). Every pre-fix CSV has
+  empty MC/heater/vent/circ/ts columns. Fixed by aligning keys; also
+  `logger.data()` now auto-populates `ts` via `_timestamp()` when the
+  caller doesn't. Vents (single is_open bool) map to 0/100 for both
+  vent_intake/vent_exhaust since hardware moves them as a pair.
+- **Active run id tracking (FIRMWARE + KIVY).** `lib/logger.py` now
+  stores `_run_id` on `begin_run()` and exposes it via a `run_id`
+  property. `main.py` `/status` returns `active_run_id`. The Kivy
+  Runs and History screens trust this field to mark the ACTIVE badge
+  and auto-select the active run in History. Both screens also pull
+  the active run to the top of their list/dropdown regardless of
+  server sort order - required because a run started before RTC sync
+  lands gets a tiny mtime (near epoch-2000) and otherwise drops to
+  the bottom of the mtime-desc sort.
+- **/runs endpoint enriched (FIRMWARE).** Now returns `mtime` (int,
+  epoch-2000 seconds) and `ended_at_str` (formatted `YYYY-MM-DD HH:MM`,
+  empty when RTC wasn't set), and sorts by mtime desc. Kivy displays
+  `ended_at_str` as the primary run label with rid/started as
+  secondary context.
+- **RTC auto-sync (KIVY).** `KivyApp/kilnapp/connection.py`
+  `_maybe_sync_rtc()` POSTs unix time to `/time` on every successful
+  Pico detect (AP or STA), rate-limited to once per 6 h. The
+  `auto_sync_rtc=True` setting was present in storage but no code
+  actually pushed time before.
+- **Connection override: Force Pico STA (KIVY).** Added
+  `OVERRIDE_STA` option. Auto mode's spec-ordered probe list is Pico
+  AP -> Pi4 -> Pico STA, so as soon as a Pi4 daemon is up on the same
+  LAN, Auto always lands on Pi4 and the user can't reach the Pico
+  STA. Force STA bypasses that. Also renamed the existing "Force
+  Direct" to "Force Pico AP" for clarity.
+- **Bottom nav multi-highlight (KIVY).** `BottomNav.select()` now
+  manually clears other tabs to `"normal"` before programmatic
+  switches. Kivy's ToggleButtonBehavior group de-selection only runs
+  on touch press, not on direct `state` writes, so nav jumps from
+  screen-to-screen (e.g. `_navigate_to`) were stacking highlights.
+- **View Alerts/History from Runs detail (KIVY).** `run_id` now
+  plumbs through the nav callback into both Alerts and History
+  screens' `preselect_run(run_id)` APIs so jumping from a run card
+  pre-filters/pre-selects correctly instead of showing "current run".
+- **Pi4 integer run ids (KIVY).** All run-label formatters now
+  `str()`-coerce the run id so Kivy Label / Spinner widgets don't
+  throw on Pi4's SQLite integer primary keys.
 
 ---
 
@@ -566,3 +651,18 @@ In rough priority order:
   (`fault`/`notice`/`info`) is tagged at source. The Kivy app reads
   `tier` from the server when present and falls back to its local
   `FAULT_CODES`/`NOTICE_CODES` tables for older firmware.
+- **Faults do not trigger ntfy.sh pushes (TODO).** Faults ride inside
+  the telemetry packet's `faults` array (e.g. `SD_FAIL`,
+  `LORA_TIMEOUT`), so the Pi4 daemon stores them but never generates a
+  phone notification -- only `ALERT;...` packets currently flow through
+  `notifier.send()`. Fix on the firmware side: when
+  `_collect_module_faults()` detects a fault code that was NOT active
+  on the previous tick (i.e. newly-active), emit a matching
+  `ALERT;<code>;stage=<n>;temp=<t>;rh=<r>` via `lora.send_alert()`.
+  Reuse the existing per-code 30-min suppression already used by
+  `schedule._send_alert()` so a flapping fault does not spam the phone.
+  Keep the `faults` array in telemetry as-is so the Kivy Dashboard
+  continues to show the live fault set regardless of alert delivery.
+  Daemon-side diffing was considered but rejected: it would lose state
+  on daemon restart (causing spurious "new" bursts) and delay
+  notifications by up to one telemetry interval (~30s).

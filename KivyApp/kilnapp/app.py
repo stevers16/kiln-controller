@@ -24,6 +24,7 @@ from kilnapp.screens.dashboard import DashboardScreen
 from kilnapp.screens.history import HistoryScreen
 from kilnapp.screens.runs import RunsScreen
 from kilnapp.screens.settings import SettingsScreen
+from kilnapp.screens.start_run import StartRunScreen
 from kilnapp.storage import SettingsStore
 from kilnapp.widgets.bottom_nav import BottomNav
 from kilnapp.widgets.top_bar import TopBar
@@ -39,6 +40,7 @@ TAB_TITLES = {
     "alerts": "Alerts",
     "runs": "Runs",
     "settings": "Settings",
+    "start_run": "Start Run",
 }
 
 
@@ -84,6 +86,14 @@ class KilnApp(App):
             RunsScreen(connection=self.connection, on_navigate=self._navigate_to)
         )
         self.screen_manager.add_widget(SettingsScreen(connection=self.connection))
+        # AP-only Start Run wizard. Not a bottom-nav tab; reached from the
+        # Dashboard's "Start Run" action button.
+        self.screen_manager.add_widget(
+            StartRunScreen(
+                connection=self.connection,
+                on_finish=lambda: self._navigate_to("dashboard"),
+            )
+        )
         root.add_widget(self.screen_manager)
 
         # Bottom nav

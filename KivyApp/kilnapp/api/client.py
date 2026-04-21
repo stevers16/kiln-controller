@@ -210,13 +210,38 @@ class KilnApiClient:
         path = "/history" + (("?" + "&".join(qs)) if qs else "")
         return self._get(path, timeout=60.0)
 
+    # ---- schedules (Pico AP only - GET list/detail require auth) ----------
+
+    def schedules(self) -> Any:
+        """GET /schedules. Returns {schedules: [{filename, name, species,
+        thickness_in, stage_count, builtin, size_bytes}, ...]}.
+        """
+        return self._get("/schedules")
+
+    def schedule_get(self, filename: str) -> Any:
+        """GET /schedules/{filename}. Returns the full schedule JSON
+        ({name, species, thickness_in, stages: [...]}).
+        """
+        return self._get(f"/schedules/{filename}")
+
     # ---- run control (Pico AP only - all require auth) --------------------
 
-    def run_start(self, schedule_filename: Optional[str] = None) -> Any:
-        """POST /run/start. Body: {schedule: filename} (omit to use Pico default)."""
+    def run_start(
+        self,
+        schedule_filename: Optional[str] = None,
+        label: Optional[str] = None,
+    ) -> Any:
+        """POST /run/start. Body: {schedule: filename, label?: str}.
+
+        The current Pico firmware only consumes `schedule`; `label` is sent
+        through for forward compatibility with a future Pi4 daemon / firmware
+        that records a user-supplied run label alongside the run record.
+        """
         body: dict = {}
         if schedule_filename:
             body["schedule"] = schedule_filename
+        if label:
+            body["label"] = label
         return self._post("/run/start", json=body)
 
     def run_stop(self, reason: str = "manual") -> Any:
