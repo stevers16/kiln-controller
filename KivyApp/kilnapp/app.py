@@ -22,6 +22,7 @@ from kilnapp.connection import ConnectionManager
 from kilnapp.screens.alerts import AlertsScreen
 from kilnapp.screens.dashboard import DashboardScreen
 from kilnapp.screens.history import HistoryScreen
+from kilnapp.screens.logs import LogsScreen
 from kilnapp.screens.runs import RunsScreen
 from kilnapp.screens.schedule_editor import ScheduleEditorScreen
 from kilnapp.screens.schedules import SchedulesScreen
@@ -47,6 +48,7 @@ TAB_TITLES = {
     "schedules": "Schedules",
     "schedule_editor": "Schedule Editor",
     "system_test": "System Test",
+    "logs": "Logs",
 }
 
 
@@ -120,6 +122,13 @@ class KilnApp(App):
         # AP-only System Test. Reached from Settings.
         self.screen_manager.add_widget(
             SystemTestScreen(
+                connection=self.connection,
+                on_finish=lambda: self._navigate_to("settings"),
+            )
+        )
+        # AP-only Logs browser. Reached from Settings.
+        self.screen_manager.add_widget(
+            LogsScreen(
                 connection=self.connection,
                 on_finish=lambda: self._navigate_to("settings"),
             )

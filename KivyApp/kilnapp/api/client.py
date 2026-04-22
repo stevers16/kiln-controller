@@ -181,6 +181,22 @@ class KilnApiClient:
         """
         return self._request("DELETE", f"/logs/{run_id}")
 
+    def sdcard_info(self) -> Any:
+        """GET /sdcard/info. Returns {mounted, total_bytes, used_bytes,
+        free_bytes, file_count} when mounted, or {mounted: False} otherwise.
+        """
+        return self._get("/sdcard/info")
+
+    def logs_events(self, run_id: str) -> Any:
+        """GET /logs/{run_id}/events. Returns {run, lines, line_count}
+        where `lines` is the full event log file split on newlines. Lines
+        are already stripped server-side.
+
+        Generous timeout: long runs can produce thousands of event lines
+        and the Pico reads them all off SPI before serialising.
+        """
+        return self._get(f"/logs/{run_id}/events", timeout=60.0)
+
     def history(
         self,
         *,

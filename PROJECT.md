@@ -450,8 +450,8 @@ user testing and approval after every phase. Plan file:
 | 7 | History graphs (5 plot tabs) | Approved |
 | 8 | Start Run flow (AP only) | Approved |
 | 9 | Schedules viewer + editor (AP only) | Approved |
-| 10 | System Test screen (AP only) | Awaiting approval |
-| 11 | Logs screen - view/download remaining (delete moved to Phase 6) | Not started |
+| 10 | System Test screen (AP only) | Approved |
+| 11 | Logs screen - view/download remaining (delete moved to Phase 6) | Awaiting approval |
 | 12 | Moisture Calibration (AP only) | Not started |
 | 13 | Module Upload (AP only) | Not started |
 | 14 | Pi4 Cottage mode end-to-end | Blocked on kiln_server |
@@ -627,6 +627,54 @@ user testing and approval after every phase. Plan file:
   and the 3-5 minute duration. No client-side check prevents
   running the test while a drying run is active; the Pico returns
   409 and the error is surfaced via the status label.
+
+### Phase 11 implementation notes
+- New screen `KivyApp/kilnapp/screens/logs.py`. AP/STA only;
+  the Settings entry-point button (`Logs`) is greyed out in
+  Cottage/Offline via the existing `_apply_tools_gate()` pattern.
+- `app.py` registers the screen as `"logs"`. Not a bottom-nav tab,
+  so the original tab stays highlighted while the screen is up
+  (same pattern as Schedules, System Test, Start Run).
+- Storage indicator (`_StorageBar`) reads `GET /sdcard/info` and
+  shows used / total + free + file count plus a `ProgressBar`. A
+  warning line is rendered above 80% full (per spec).
+- Log set list is populated from `GET /runs` (the same endpoint
+  Runs uses). Each row shows the same primary label, the rid,
+  event-count / data-row / total-size summary, and three buttons:
+  View, Download events, Download CSV. Delete intentionally
+  omitted - Phase 6's Runs detail view already has it.
+- `GET /status` is fetched alongside `/runs` purely so the active
+  run can be flagged with `(ACTIVE)` and pulled to the top of the
+  list (mirrors Runs' handling of the RTC-unset / mtime-near-zero
+  case for the live run).
+- In-app event log viewer (`_EventLogViewer`) is a sub-widget that
+  swaps out the list area when the user taps View. Toolbar:
+  Back / level spinner (ALL / INFO / WARN / ERROR) / search field
+  / line counter. Body is a monospace `Label` inside a horizontally
+  + vertically scrollable `ScrollView`; the label width tracks
+  `texture_size[0]` so long lines aren't wrapped. Filtering and
+  search re-render in-memory without re-fetching.
+- `_line_level()` parses the level token from the standard logger
+  format (`"YYYY-MM-DD HH:MM:SS [LEVEL] [source] msg"`). Unknown
+  tokens map to `OTHER` so an `ALL` view still shows them; legacy
+  `WARNING` lines are normalised to `WARN` so the filter catches
+  both spellings (matches the firmware's WARN-vs-WARNING fix
+  already shipped).
+- Event log download uses the same `GET /logs/{rid}/events` payload
+  that the viewer consumes, joined with newlines and saved as
+  `event_<rid>.txt`. Data CSV download fetches `GET /history?run=
+  <rid>` (already columnar) and reconstructs the on-SD CSV format
+  via `_rows_to_csv()` (`,`-joined, `\n` rows, empty string for
+  None, 2-decimal floats matching `logger.data()`). Saved as
+  `data_<rid>.csv`.
+- Desktop save target is `~/Downloads`, falling back to
+  `App.user_data_dir` if Downloads is not writable - mirrors the
+  Phase 10 System Test report-save behaviour. Android SAF hookup
+  is deferred to Phase 15 per the plan.
+- Two new client methods in `api/client.py`: `sdcard_info()` and
+  `logs_events(run_id)` (with a 60s timeout - long runs produce
+  thousands of event lines and the Pico reads them off SPI before
+  serialising).
 
 ### Phase 7-adjacent fixes shipped with the phase
 Several cross-cutting issues surfaced during Phase 7 testing and got

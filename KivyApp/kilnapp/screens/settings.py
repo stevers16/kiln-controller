@@ -152,6 +152,8 @@ class SettingsScreen(Screen):
         form.add_widget(self.schedules_btn)
         self.system_test_btn = _button("System Test", self._goto_system_test)
         form.add_widget(self.system_test_btn)
+        self.logs_btn = _button("Logs", self._goto_logs)
+        form.add_widget(self.logs_btn)
         self._apply_tools_gate()
 
         # ---- Save + status -----------------------------------------------
@@ -180,12 +182,16 @@ class SettingsScreen(Screen):
         # Tool buttons don't exist until build() has run. Guard for the
         # race where the connection manager fires its first detect
         # before the widget tree is finished wiring up.
-        if hasattr(self, "schedules_btn") and hasattr(self, "system_test_btn"):
+        if (
+            hasattr(self, "schedules_btn")
+            and hasattr(self, "system_test_btn")
+            and hasattr(self, "logs_btn")
+        ):
             self._apply_tools_gate()
 
     def _apply_tools_gate(self) -> None:
         direct = self._current_mode in (MODE_DIRECT, MODE_STA)
-        for btn in (self.schedules_btn, self.system_test_btn):
+        for btn in (self.schedules_btn, self.system_test_btn, self.logs_btn):
             btn.disabled = not direct
             btn.opacity = 1.0 if direct else 0.5
 
@@ -200,6 +206,12 @@ class SettingsScreen(Screen):
             return
         if self._on_navigate is not None:
             self._on_navigate("system_test")
+
+    def _goto_logs(self) -> None:
+        if self._current_mode not in (MODE_DIRECT, MODE_STA):
+            return
+        if self._on_navigate is not None:
+            self._on_navigate("logs")
 
     # ---- helpers -----------------------------------------------------------
 
