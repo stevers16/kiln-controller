@@ -71,6 +71,8 @@ class KilnApiClient:
         path: str,
         *,
         json: Any = None,
+        data: Any = None,
+        content_type: Optional[str] = None,
         base_url: Optional[str] = None,
         timeout: Optional[float] = None,
         auth: bool = True,
@@ -78,12 +80,16 @@ class KilnApiClient:
         url = (base_url or self.config.base_url or "").rstrip("/") + path
         if not url.startswith("http"):
             raise ApiError("no base url configured")
+        headers = self._headers(auth)
+        if data is not None and content_type is not None:
+            headers["Content-Type"] = content_type
         try:
             resp = requests.request(
                 method,
                 url,
-                headers=self._headers(auth),
+                headers=headers,
                 json=json,
+                data=data,
                 timeout=timeout or self.config.timeout,
             )
         except requests.Timeout as e:
@@ -217,6 +223,34 @@ class KilnApiClient:
             "channel_2_offset": float(channel_2_offset),
         }
         return self._post("/calibration", json=body)
+
+    def modules_list(self) -> Any:
+        """GET /modules. Returns {modules: [{path, size_bytes, modified}]}
+        with one row per installed .py file (main.py + lib/*.py).
+        """
+        return self._get("/modules")
+
+    def module_upload(self, mod_path: str, body: bytes) -> Any:
+        """PUT /modules/{mod_path} with a raw bytes payload.
+
+        Firmware accepts `main.py` or `lib/*.py` only; everything else
+        returns 400. 512KB max body. On success the firmware schedules a
+        reboot ~1s after the response, so the caller should be ready to
+        lose the connection.
+
+        Generous timeout: a 30KB module over SPI on a busy Pico can take
+        several seconds to write before the handler responds.
+        """
+        # Strip a leading slash so `/lib/foo.py` and `lib/foo.py` both work;
+        # the firmware's URL matcher expects the bare path.
+        mod_path = mod_path.lstrip("/")
+        return self._request(
+            "PUT",
+            f"/modules/{mod_path}",
+            data=body,
+            content_type="application/octet-stream",
+            timeout=30.0,
+        )
 
     def logs_events(self, run_id: str) -> Any:
         """GET /logs/{run_id}/events. Returns {run, lines, line_count}

@@ -24,6 +24,7 @@ from kilnapp.screens.calibration import CalibrationScreen
 from kilnapp.screens.dashboard import DashboardScreen
 from kilnapp.screens.history import HistoryScreen
 from kilnapp.screens.logs import LogsScreen
+from kilnapp.screens.module_upload import ModuleUploadScreen
 from kilnapp.screens.runs import RunsScreen
 from kilnapp.screens.schedule_editor import ScheduleEditorScreen
 from kilnapp.screens.schedules import SchedulesScreen
@@ -51,6 +52,7 @@ TAB_TITLES = {
     "system_test": "System Test",
     "logs": "Logs",
     "calibration": "Moisture Calibration",
+    "module_upload": "Module Upload",
 }
 
 
@@ -138,6 +140,13 @@ class KilnApp(App):
         # AP-only Moisture Calibration. Reached from Settings.
         self.screen_manager.add_widget(
             CalibrationScreen(
+                connection=self.connection,
+                on_finish=lambda: self._navigate_to("settings"),
+            )
+        )
+        # AP-only Module Upload. Reached from Settings.
+        self.screen_manager.add_widget(
+            ModuleUploadScreen(
                 connection=self.connection,
                 on_finish=lambda: self._navigate_to("settings"),
             )

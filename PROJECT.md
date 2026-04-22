@@ -452,8 +452,8 @@ user testing and approval after every phase. Plan file:
 | 9 | Schedules viewer + editor (AP only) | Approved |
 | 10 | System Test screen (AP only) | Approved |
 | 11 | Logs screen - view/download remaining (delete moved to Phase 6) | Approved |
-| 12 | Moisture Calibration (AP only) | Awaiting approval |
-| 13 | Module Upload (AP only) | Not started |
+| 12 | Moisture Calibration (AP only) | Approved |
+| 13 | Module Upload (AP only) | Awaiting approval |
 | 14 | Pi4 Cottage mode end-to-end | Blocked on kiln_server |
 | 15 | Android packaging via buildozer | Not started |
 
@@ -718,6 +718,56 @@ user testing and approval after every phase. Plan file:
 - After a successful Save or Reset, the screen re-fetches
   `/calibration` + `/moisture/live` so the panel values reflect the
   Pico's actual state rather than whatever the client proposed.
+
+### Phase 13 implementation notes
+- New screen `KivyApp/kilnapp/screens/module_upload.py`. AP/STA only;
+  the Settings "Module Upload" tool button is greyed out in
+  Cottage/Offline via `_apply_tools_gate()` (same pattern as the
+  other AP-only tools).
+- `app.py` registers the screen as `"module_upload"`. Reached from
+  Settings; not a bottom-nav tab.
+- Two new client methods in `api/client.py`: `modules_list()` and
+  `module_upload(mod_path, body)`. The latter sends raw bytes via a
+  new `data=` / `content_type=` pass-through on `_request()` so the
+  Pico's `handle_module_upload` (which writes `body` directly to
+  flash) gets exactly what was on disk - no JSON wrapping.
+- Two upload destinations are supported, routed by file extension
+  on the target path:
+    - .py    -> `PUT /modules/{path}` (firmware accepts main.py
+                or lib/*.py only; reboots on success)
+    - .json  -> `PUT /schedules/{filename}` (Pico runs the same
+                full schedule-schema validation as the editor; no
+                reboot)
+  The screen rejects target paths the firmware would 400 on so the
+  user sees the error inline rather than as a server response.
+- File picker is the built-in `kivy.uix.filechooser.FileChooserListView`
+  inside a Popup, filtered to `*.py` and `*.json`. On phone the
+  Phase 15 buildozer pass will swap this for plyer/filechooser; on
+  desktop the Kivy widget is reliable.
+- Warning banner is always visible (red title + 3-line body) per the
+  spec. A second `main.py replaces the entry point` warning shows
+  inline only when the target path is exactly `main.py` and is
+  driven by a live bind on the target text input - it appears as
+  soon as the user picks main.py or types the path manually.
+- 512KB cap is enforced client-side too (`_MAX_BYTES`) so a large
+  file is rejected before any bytes hit the wire.
+- Confirm dialog summarises the destructive action: main.py shows
+  the danger-styled variant; lib/*.py uploads call out the reboot;
+  schedule uploads note "no reboot".
+- Reconnect watch (`_start_reconnect_watch`) polls `/health` every
+  3s for up to 30s after a .py upload and reports when the Pico is
+  back. On success it nudges `connection.detect()` so the indicator
+  and other screens see the freshly rebooted endpoint without
+  waiting for the next autodetect cycle. JSON uploads skip the
+  watch.
+- "Installed modules" panel calls `GET /modules` on entry, on a
+  Refresh button, and after every successful schedule save (module
+  uploads refresh later via the reconnect watch).
+- Progress bar implementation is intentionally minimal: `requests`
+  doesn't expose per-byte upload progress without a streaming
+  generator, and modules are tens of KB so a busy spinner / status
+  line is more honest than a fake bar. The bar jumps to 0.1 at
+  start and 1.0 on completion. Documented in the file's docstring.
 
 ### Phase 7-adjacent fixes shipped with the phase
 Several cross-cutting issues surfaced during Phase 7 testing and got
