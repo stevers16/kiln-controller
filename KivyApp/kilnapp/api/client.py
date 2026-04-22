@@ -272,6 +272,24 @@ class KilnApiClient:
         """
         return self._post("/run/shutdown")
 
+    # ---- system test (Pico AP only - all require auth) -------------------
+
+    def test_run(self) -> Any:
+        """POST /test/run. Pico returns {ok, test_count, estimated_duration_s}.
+        409 if a test is already running; also 409 if a drying run is active.
+        """
+        return self._post("/test/run")
+
+    def test_status(self) -> Any:
+        """GET /test/status. Returns {complete, elapsed_s, tests: [...],
+        passed, failed, skipped, pending, overall?}. `overall` is only
+        present once complete=True.
+
+        Each test row is {id, name, group, status, detail, duration_ms}
+        where status is one of pending / running / pass / fail / skip.
+        """
+        return self._get("/test/status")
+
     def set_time(self, unix_ts: int) -> Any:
         """POST /time with a unix timestamp so the Pico can set its RTC.
 

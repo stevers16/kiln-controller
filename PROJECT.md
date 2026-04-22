@@ -449,8 +449,8 @@ user testing and approval after every phase. Plan file:
 | 6 | Runs screen + run detail view + delete | Approved |
 | 7 | History graphs (5 plot tabs) | Approved |
 | 8 | Start Run flow (AP only) | Approved |
-| 9 | Schedules viewer + editor (AP only) | Awaiting approval |
-| 10 | System Test screen (AP only) | Not started |
+| 9 | Schedules viewer + editor (AP only) | Approved |
+| 10 | System Test screen (AP only) | Awaiting approval |
 | 11 | Logs screen - view/download remaining (delete moved to Phase 6) | Not started |
 | 12 | Moisture Calibration (AP only) | Not started |
 | 13 | Module Upload (AP only) | Not started |
@@ -583,6 +583,50 @@ user testing and approval after every phase. Plan file:
 - `schedule_put` + `schedule_delete` added to
   `KivyApp/kilnapp/api/client.py`. Both use `_request()` directly
   (PUT / DELETE aren't wrapped by the `_post` helper).
+
+### Phase 10 implementation notes
+- New screen `KivyApp/kilnapp/screens/system_test.py`. AP/STA only;
+  the run button is greyed out in Cottage/Offline via a connection
+  listener (same pattern as Schedules).
+- Entry point: a "System Test" button in the existing
+  "Tools (Direct only)" section of the Settings screen. The spec
+  allows access from Dashboard or Settings; Settings keeps the
+  Dashboard uncluttered.
+- `app.py` registers the screen; `_navigate_to()` treats it like
+  Start Run and Schedules (not a bottom-nav tab, no tab highlight
+  change), so the user's original tab stays highlighted while the
+  test screen is up.
+- Threading: `call_async` for both `POST /test/run` and the 1 s
+  `GET /test/status` polls. Poll errors are shown in the status
+  label but don't kill the poll loop - Pico is frequently slow to
+  respond mid-test (heater commissioning step is 2+ min of CPU
+  attention) and a single timeout should not collapse the UI.
+- Rows are keyed by test id and upserted each tick rather than
+  rebuilt, so Kivy doesn't churn widgets and the user's scroll
+  position is preserved while RUN/PASS/FAIL badges update in place.
+  Tests are grouped by their `group` field (Unit Tests / Integration
+  Tests / Commissioning) - section headers appear in discovery order
+  as new groups are seen.
+- Progress bar is a real `ProgressBar` filled by
+  (done / total) where done = pass+fail+skip. Elapsed time is
+  client-side (server's `elapsed_s` field is currently always 0).
+- On completion: a summary Panel is inserted above the test list
+  showing overall PASS/FAIL plus counts, with "Save results" and
+  "Copy to clipboard" buttons. Save writes a timestamped .txt to
+  the user's `~/Downloads` folder (falls back to `user_data_dir` if
+  Downloads is not writable); Android will hook into the SAF in
+  Phase 15. Copy uses `kivy.core.clipboard.Clipboard`.
+- Leaving the screen stops local polling but does NOT abort the
+  test on the Pico - there is no `/test/cancel` endpoint. Coming
+  back to the screen with a test still running shows a stale view
+  until the user re-triggers Run, since the Pico's idempotent
+  `/test/status` is only polled while we have a local start
+  timestamp. Good-enough for now; future work could auto-resume
+  polling if `complete=False` on entry.
+- Pre-run confirmation dialog mentions heater + fans activation
+  and the 3-5 minute duration. No client-side check prevents
+  running the test while a drying run is active; the Pico returns
+  409 and the error is surfaced via the status label.
 
 ### Phase 7-adjacent fixes shipped with the phase
 Several cross-cutting issues surfaced during Phase 7 testing and got

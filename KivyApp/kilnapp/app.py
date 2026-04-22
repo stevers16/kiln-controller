@@ -27,6 +27,7 @@ from kilnapp.screens.schedule_editor import ScheduleEditorScreen
 from kilnapp.screens.schedules import SchedulesScreen
 from kilnapp.screens.settings import SettingsScreen
 from kilnapp.screens.start_run import StartRunScreen
+from kilnapp.screens.system_test import SystemTestScreen
 from kilnapp.storage import SettingsStore
 from kilnapp.widgets.bottom_nav import BottomNav
 from kilnapp.widgets.top_bar import TopBar
@@ -45,6 +46,7 @@ TAB_TITLES = {
     "start_run": "Start Run",
     "schedules": "Schedules",
     "schedule_editor": "Schedule Editor",
+    "system_test": "System Test",
 }
 
 
@@ -115,6 +117,13 @@ class KilnApp(App):
             on_finish=lambda: self._navigate_to("schedules"),
         )
         self.screen_manager.add_widget(self.schedule_editor_screen)
+        # AP-only System Test. Reached from Settings.
+        self.screen_manager.add_widget(
+            SystemTestScreen(
+                connection=self.connection,
+                on_finish=lambda: self._navigate_to("settings"),
+            )
+        )
         root.add_widget(self.screen_manager)
 
         # Bottom nav

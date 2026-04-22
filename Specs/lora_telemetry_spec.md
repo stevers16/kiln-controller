@@ -243,7 +243,7 @@ kiln_server/
 
 ```python
 # Bench Pi4 (home)
-DB_PATH       = "/home/pi/kiln_data.db"
+DB_PATH       = "/home/srelias/CottageKiln/kiln_data.db"
 NTFY_TOPIC    = "your-unique-kiln-topic"
 API_PORT      = 8080
 
@@ -405,7 +405,7 @@ After=network.target
 
 [Service]
 ExecStart=/usr/bin/python3 -m kiln_server
-WorkingDirectory=/home/pi/kiln_server
+WorkingDirectory=/home/srelias/CottageKiln/kiln_server
 Restart=always
 RestartSec=5
 User=pi

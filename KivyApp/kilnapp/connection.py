@@ -128,17 +128,52 @@ class ConnectionManager:
         call_async(work, done)
 
     def _maybe_sync_rtc(self) -> None:
-        """If auto-sync is enabled and it's been long enough since the
-        last sync, POST current unix time to the Pico's /time endpoint."""
+        """If auto-sync is enabled, decide whether to POST current unix
+        time to the Pico's /time endpoint.
+
+        The 6-hour rate limit assumes the Pico retains its clock between
+        syncs. It doesn't - the Pico 2 W has no battery-backed RTC, so
+        every power cycle drops it back to year 2021 regardless of when
+        the app last synced. Before applying the rate limit, fetch
+        /health and bypass the limit when the Pico reports rtc_set=False.
+        """
         if not self.settings.auto_sync_rtc:
             return
         # Only AP/STA modes support /time (Pi4 daemon is read-only).
         if self.last_result.mode not in (MODE_DIRECT, MODE_STA):
             return
-        now_s = int(time.time())
-        age = now_s - int(self.settings.last_rtc_sync or 0)
-        if age < RTC_SYNC_MIN_INTERVAL_S and self.settings.last_rtc_sync:
-            return
+        client_snapshot = self.client
+
+        def work():
+            # Pull /health to see if the Pico's RTC is set. Falls back
+            # to (None, None) on any error; the caller treats that as
+            # "assume rtc is set and respect the rate limit".
+            try:
+                h = client_snapshot.health_current()
+                rtc_set = bool((h or {}).get("rtc_set"))
+                return (True, rtc_set)
+            except Exception as e:  # noqa: BLE001
+                Logger.warning(f"kiln: /health probe for RTC failed: {e}")
+                return (False, None)
+
+        def decide(result, _err):
+            ok, rtc_set = result if result is not None else (False, None)
+            now_s = int(time.time())
+            age = now_s - int(self.settings.last_rtc_sync or 0)
+            within_window = (
+                age < RTC_SYNC_MIN_INTERVAL_S and self.settings.last_rtc_sync
+            )
+            # Force a sync when the Pico says its clock is unset, even
+            # if we synced recently from this app's perspective. This
+            # fires after any Pico power cycle.
+            force = ok and rtc_set is False
+            if within_window and not force:
+                return
+            self._push_rtc(now_s)
+
+        call_async(work, decide)
+
+    def _push_rtc(self, now_s: int) -> None:
         client_snapshot = self.client
 
         def work():
