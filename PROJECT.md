@@ -451,8 +451,8 @@ user testing and approval after every phase. Plan file:
 | 8 | Start Run flow (AP only) | Approved |
 | 9 | Schedules viewer + editor (AP only) | Approved |
 | 10 | System Test screen (AP only) | Approved |
-| 11 | Logs screen - view/download remaining (delete moved to Phase 6) | Awaiting approval |
-| 12 | Moisture Calibration (AP only) | Not started |
+| 11 | Logs screen - view/download remaining (delete moved to Phase 6) | Approved |
+| 12 | Moisture Calibration (AP only) | Awaiting approval |
 | 13 | Module Upload (AP only) | Not started |
 | 14 | Pi4 Cottage mode end-to-end | Blocked on kiln_server |
 | 15 | Android packaging via buildozer | Not started |
@@ -675,6 +675,49 @@ user testing and approval after every phase. Plan file:
   `logs_events(run_id)` (with a 60s timeout - long runs produce
   thousands of event lines and the Pico reads them off SPI before
   serialising).
+
+### Phase 12 implementation notes
+- New screen `KivyApp/kilnapp/screens/calibration.py`. AP/STA only;
+  the Settings "Moisture Calibration" tool button is greyed out in
+  Cottage/Offline via `_apply_tools_gate()` (same pattern as the
+  Schedules / System Test / Logs buttons).
+- `app.py` registers the screen as `"calibration"`. Reached from
+  Settings; not a bottom-nav tab.
+- Three new client methods in `api/client.py`: `moisture_live()`,
+  `calibration_get()`, `calibration_post(ch1, ch2)`.
+- Offset math: firmware stores `corrected_mc = raw_mc + offset` and
+  `/moisture/live` returns the *corrected* value (current offset
+  already baked in). Client recovers raw via
+  `raw_mc = corrected_mc - current_offset`, then computes
+  `new_offset = reference_mc - raw_mc` on Apply. Doc-comment at the
+  top of `calibration.py` spells this out so future edits don't drop
+  the `current_offset` term by accident.
+- Single "Take reading" button triggers one `GET /moisture/live` call
+  and populates both channels - there's no reason to split it because
+  the endpoint returns both channels in the same payload.
+- Per-channel `_ChannelPanel` shows resistance (Ohm / kOhm / MOhm),
+  corrected MC%, raw MC% (computed client-side), current offset,
+  and a temp-correction indicator. A reference MC% input + Apply
+  button computes the proposed offset; Apply only mutates local
+  state - nothing hits the Pico until Save.
+- Proposed offsets are clamped to +/-50 MC% on Apply so a typo
+  doesn't save a wild value. (Typical offsets are well under 5 MC%.)
+- Save shows a confirmation dialog summarising both channels and
+  then POSTs `{channel_1_offset, channel_2_offset}`. It sends BOTH
+  channels every time (not just the one the user changed): the
+  firmware write is atomic anyway and this avoids drift if one
+  channel was edited months ago and loaded from SD this session.
+- Reset to defaults uses the same POST path with `{0.0, 0.0}` after
+  a danger-styled confirmation dialog. The firmware writes a fresh
+  calibration.json with `calibrated_at` set to now, so the
+  "Current calibration" timestamp updates on the next refresh.
+- "Current calibration" panel shows both offsets + last-calibrated
+  timestamp + a source note. Falls back to "RTC was not set" when
+  the Pico returned `calibrated_at=0` (happens if the Pico clock
+  was never synced before the calibration write).
+- After a successful Save or Reset, the screen re-fetches
+  `/calibration` + `/moisture/live` so the panel values reflect the
+  Pico's actual state rather than whatever the client proposed.
 
 ### Phase 7-adjacent fixes shipped with the phase
 Several cross-cutting issues surfaced during Phase 7 testing and got

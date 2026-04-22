@@ -154,6 +154,8 @@ class SettingsScreen(Screen):
         form.add_widget(self.system_test_btn)
         self.logs_btn = _button("Logs", self._goto_logs)
         form.add_widget(self.logs_btn)
+        self.calibration_btn = _button("Moisture Calibration", self._goto_calibration)
+        form.add_widget(self.calibration_btn)
         self._apply_tools_gate()
 
         # ---- Save + status -----------------------------------------------
@@ -186,12 +188,18 @@ class SettingsScreen(Screen):
             hasattr(self, "schedules_btn")
             and hasattr(self, "system_test_btn")
             and hasattr(self, "logs_btn")
+            and hasattr(self, "calibration_btn")
         ):
             self._apply_tools_gate()
 
     def _apply_tools_gate(self) -> None:
         direct = self._current_mode in (MODE_DIRECT, MODE_STA)
-        for btn in (self.schedules_btn, self.system_test_btn, self.logs_btn):
+        for btn in (
+            self.schedules_btn,
+            self.system_test_btn,
+            self.logs_btn,
+            self.calibration_btn,
+        ):
             btn.disabled = not direct
             btn.opacity = 1.0 if direct else 0.5
 
@@ -212,6 +220,12 @@ class SettingsScreen(Screen):
             return
         if self._on_navigate is not None:
             self._on_navigate("logs")
+
+    def _goto_calibration(self) -> None:
+        if self._current_mode not in (MODE_DIRECT, MODE_STA):
+            return
+        if self._on_navigate is not None:
+            self._on_navigate("calibration")
 
     # ---- helpers -----------------------------------------------------------
 

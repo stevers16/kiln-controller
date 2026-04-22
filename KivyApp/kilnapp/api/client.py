@@ -187,6 +187,37 @@ class KilnApiClient:
         """
         return self._get("/sdcard/info")
 
+    def moisture_live(self) -> Any:
+        """GET /moisture/live. Returns {channel_1: {mc_pct, resistance_ohms,
+        temp_corrected, temp_c}, channel_2: {...}}.
+
+        mc_pct is already corrected with the currently loaded calibration
+        offset. resistance_ohms is an int (or None on probe failure).
+        """
+        return self._get("/moisture/live")
+
+    def calibration_get(self) -> Any:
+        """GET /calibration. Returns {channel_1_offset, channel_2_offset,
+        calibrated_at, source}. `source` is 'defaults' if no calibration
+        file is on the SD card, otherwise 'calibration.json'.
+        `calibrated_at` is a unix timestamp (0 / None if RTC wasn't set
+        at save time).
+        """
+        return self._get("/calibration")
+
+    def calibration_post(
+        self, channel_1_offset: float, channel_2_offset: float
+    ) -> Any:
+        """POST /calibration. Body: {channel_1_offset, channel_2_offset}.
+        The Pico writes calibration.json to SD and applies the offsets to
+        the running moisture probe immediately. Returns {ok, calibrated_at}.
+        """
+        body = {
+            "channel_1_offset": float(channel_1_offset),
+            "channel_2_offset": float(channel_2_offset),
+        }
+        return self._post("/calibration", json=body)
+
     def logs_events(self, run_id: str) -> Any:
         """GET /logs/{run_id}/events. Returns {run, lines, line_count}
         where `lines` is the full event log file split on newlines. Lines

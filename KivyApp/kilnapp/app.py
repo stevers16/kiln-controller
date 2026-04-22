@@ -20,6 +20,7 @@ from kilnapp.api.autodetect import (
 )
 from kilnapp.connection import ConnectionManager
 from kilnapp.screens.alerts import AlertsScreen
+from kilnapp.screens.calibration import CalibrationScreen
 from kilnapp.screens.dashboard import DashboardScreen
 from kilnapp.screens.history import HistoryScreen
 from kilnapp.screens.logs import LogsScreen
@@ -49,6 +50,7 @@ TAB_TITLES = {
     "schedule_editor": "Schedule Editor",
     "system_test": "System Test",
     "logs": "Logs",
+    "calibration": "Moisture Calibration",
 }
 
 
@@ -129,6 +131,13 @@ class KilnApp(App):
         # AP-only Logs browser. Reached from Settings.
         self.screen_manager.add_widget(
             LogsScreen(
+                connection=self.connection,
+                on_finish=lambda: self._navigate_to("settings"),
+            )
+        )
+        # AP-only Moisture Calibration. Reached from Settings.
+        self.screen_manager.add_widget(
+            CalibrationScreen(
                 connection=self.connection,
                 on_finish=lambda: self._navigate_to("settings"),
             )
