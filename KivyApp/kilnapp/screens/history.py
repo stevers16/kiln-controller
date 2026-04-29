@@ -166,6 +166,36 @@ def _unpack_columnar(payload: Dict[str, Any]) -> Dict[str, List[Any]]:
         for ci, fname in enumerate(fields):
             if ci < len(row):
                 cols[fname][ri] = row[ci]
+    # Field-name aliases. The Pico CSVs use the short forms (mc_ch1,
+    # exhaust_pct, ...); the Pi4 daemon's telemetry table uses the long
+    # forms straight off the LoRa wire (mc_channel_1, exhaust_fan_pct,
+    # ...). Synthesize the missing alias from whichever shape arrived so
+    # the plot code below can read the canonical (short) names.
+    _alias = {
+        "mc_ch1": "mc_channel_1",
+        "mc_ch2": "mc_channel_2",
+        "exhaust_pct": "exhaust_fan_pct",
+        "circ_pct": "circ_fan_pct",
+    }
+    for short, long in _alias.items():
+        if short not in cols and long in cols:
+            cols[short] = cols[long]
+        elif long not in cols and short in cols:
+            cols[long] = cols[short]
+    # Pi4 telemetry stores a single `vent_open` bool because the kiln
+    # moves both servos as a pair. The History plot expects per-servo
+    # columns (vent_intake / vent_exhaust). When the per-servo columns
+    # are missing, project vent_open into both at 0/100 so the humidity
+    # tab's vent shading and the diagnostics tab's vent traces still
+    # render.
+    if "vent_open" in cols and "vent_intake" not in cols:
+        cols["vent_intake"] = [
+            (None if v is None else (100 if v else 0)) for v in cols["vent_open"]
+        ]
+    if "vent_open" in cols and "vent_exhaust" not in cols:
+        cols["vent_exhaust"] = [
+            (None if v is None else (100 if v else 0)) for v in cols["vent_open"]
+        ]
     return cols
 
 

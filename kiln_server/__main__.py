@@ -76,7 +76,12 @@ def main() -> int:
     receiver.start()
 
     # --- Flask API ---------------------------------------------------------
-    app = create_app(db=db, receiver=receiver, environment=config.ENVIRONMENT)
+    app = create_app(
+        db=db,
+        receiver=receiver,
+        environment=config.ENVIRONMENT,
+        notifier=notifier,
+    )
 
     stop_event = threading.Event()
 

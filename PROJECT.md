@@ -33,7 +33,13 @@ Cottage-side architecture decided: Ra-02 LoRa receiver wired directly to Pi4 SPI
 bus. Pi4 runs a Python daemon (`kiln_server`) that receives LoRa packets, stores
 telemetry in SQLite, serves a REST API for the Kivy phone app, and pushes alerts
 via ntfy.sh. Daemon is now implemented (`kiln_server/`, per
-`Specs/Pi4_demon_spec.md`) and awaiting bench end-to-end test. No ESP32 or MQTT broker in production system.
+`Specs/Pi4_demon_spec.md`) and running on a local Pi. The Phase 14 Kivy work
+augmented the daemon's REST surface so the Cottage-mode Kivy app sees the same
+shape it sees from the Pico: `/status` synthesises run_active /
+schedule_name / fault_details / stage_index / last_packet_age_s,
+`/alerts` rows carry tier+level+source, and `/runs` rows carry the
+Pico-style formatted timestamps and data_rows/event_count aliases.
+No ESP32 or MQTT broker in production system.
 
 ---
 
@@ -361,7 +367,7 @@ Pico --> SPI1 --> Ra-02 ~~LoRa~~ Ra-02 --> SPI0 --> Pi4 kiln_server daemon
                                                  --> ntfy.sh --> phone notifications
 ```
 
-**Pi4 `kiln_server` package** (implemented, awaiting bench test):
+**Pi4 `kiln_server` package** (implemented, running on local Pi):
 - `lora_receiver.py` -- SX1278 SPI driver + receive thread; polls DIO0 at 20ms, parses telemetry JSON / heartbeat / `ALERT;...` strings
 - `database.py` -- SQLite schema (telemetry/alerts/runs); WAL mode, per-thread connections, write-lock serialised inserts; columnar `/history` query with field whitelist
 - `api.py` -- Flask app: `/health`, `/status`, `/history`, `/alerts`, `/runs`
@@ -453,8 +459,8 @@ user testing and approval after every phase. Plan file:
 | 10 | System Test screen (AP only) | Approved |
 | 11 | Logs screen - view/download remaining (delete moved to Phase 6) | Approved |
 | 12 | Moisture Calibration (AP only) | Approved |
-| 13 | Module Upload (AP only) | Awaiting approval |
-| 14 | Pi4 Cottage mode end-to-end | Blocked on kiln_server |
+| 13 | Module Upload (AP only) | Approved |
+| 14 | Pi4 Cottage mode end-to-end | Awaiting approval |
 | 15 | Android packaging via buildozer | Not started |
 
 ### Conventions
@@ -719,6 +725,68 @@ user testing and approval after every phase. Plan file:
   `/calibration` + `/moisture/live` so the panel values reflect the
   Pico's actual state rather than whatever the client proposed.
 
+### Phase 14 implementation notes
+- Pi4 `kiln_server/api.py` now synthesises the field shape the Kivy
+  Dashboard (Pico-targeted) expects from a telemetry row plus the
+  runs table. New synthesised fields on `/status`:
+  `run_active`, `active_run_id`, `cooldown` (always False),
+  `schedule_name` (from runs.schedule_name), `stage_index`,
+  `stage_name` ("Stage N" fallback - the Pi4 has no schedule data
+  to look up real names), `total_elapsed_h`, `active_alerts`
+  (alias of `faults`), `fault_details` (synthesised
+  `{code, source: "lora", message, tier}` per fault using the same
+  ALERT_CODE_TIERS table the firmware ships with),
+  `last_packet_age_s`, `last_packet_ts`, plus explicit `null` for
+  `stage_elapsed_h` / `stage_min_h` / `target_*` / `mc_resistance_*`
+  so the Dashboard's `data.get(...)` paths take the same branches
+  in both modes. `run_active` requires both an open run AND a
+  fresh telemetry row (within 90s) - this prevents stale telemetry
+  from a long-disconnected Pico from looking "active".
+- `/alerts` rows now carry `tier` (fault/notice/info), `level`
+  (ERROR/WARN/INFO derived from tier), and `source` ("lora").
+  `/alerts?level=...` filters server-side post-decoration.
+- `/runs` rows now expose `started_at_str` / `ended_at_str`
+  (formatted via `datetime`), `data_rows` (alias for
+  telemetry_count), `event_count` (alias for alert_count), and
+  `size_bytes: 0` (SQLite per-run size isn't a useful number).
+  An `active` flag is also added so the Kivy run list can show the
+  ACTIVE badge without re-querying /status.
+- `/health` now includes `ntfy_topic` and `ntfy_url` so the Kivy
+  Settings Daemon-info section can display them. Added `notifier`
+  parameter to `create_app()` and wired it through `__main__.py`.
+- Both `/alerts` and `/history` accept `run` as a synonym for
+  `run_id`; the Kivy app uses the Pico-style `run` query string.
+- Kivy `screens/dashboard.py` gained a `LoraLinkPanel`
+  (Cottage-mode only) with a 5-bar RSSI indicator, raw RSSI dBm,
+  SNR dB, and last-packet age. Bars step from green -> amber ->
+  red as signal degrades (cutoffs: -60/-75/-90/-105 dBm). The
+  panel attaches/detaches with the connection mode rather than
+  staying empty in AP/STA mode.
+- Kivy `screens/settings.py` gained a "Daemon info (Cottage)"
+  section populated from `GET /health` (environment, uptime,
+  packets received, last-packet age, ntfy.sh topic). Out-of-mode
+  the labels show a hint to connect via Cottage; the section
+  stays attached because Kivy's BoxLayout height-binding fights
+  with manual `height=0` writes (any child layout pass restores
+  it from minimum_height). `on_pre_enter` re-fetches /health on
+  every visit while in Cottage mode.
+- Kivy `screens/history.py` `_unpack_columnar()` now aliases
+  short-vs-long column names (`mc_ch1` <-> `mc_channel_1`,
+  `exhaust_pct` <-> `exhaust_fan_pct`, `circ_pct` <->
+  `circ_fan_pct`). It also projects the Pi4's single
+  `vent_open` boolean into per-servo `vent_intake` /
+  `vent_exhaust` 0/100 columns so the existing Humidity vent
+  shading and Diagnostics vent traces still render in Cottage
+  mode.
+- AP-only gating audit: every AP-only screen
+  (`start_run`, `schedules`, `schedule_editor`, `system_test`,
+  `module_upload`, `logs`, `calibration`) already gates the
+  destructive operation on `MODE_DIRECT or MODE_STA` and the
+  Settings Tools-section buttons disable in Cottage via
+  `_apply_tools_gate()`. The Dashboard's Start/Stop/Advance
+  /Shutdown buttons hide via `_is_direct_mode()`. No additional
+  gating work was required.
+
 ### Phase 13 implementation notes
 - New screen `KivyApp/kilnapp/screens/module_upload.py`. AP/STA only;
   the Settings "Module Upload" tool button is greyed out in
@@ -825,16 +893,14 @@ fixed in the same batch (rather than waiting for their nominal phase):
 
 In rough priority order:
 
-1. **`kiln_server/` Pi4 daemon** -- IMPLEMENTED, awaiting bench test. See
-   "Cottage-side architecture" above and `Specs/Pi4_demon_spec.md`. Outstanding:
-   - Enable SPI on bench Pi4, wire Ra-02 per spec, install deps
-   - Bench end-to-end test (Pico TX -> Pi4 daemon -> SQLite -> `/status`
-     and `/history` queries, + ntfy.sh push)
-   - Stretch: expose `fault_details` (not just the comma-joined `faults`
-     string) on `/status` so cottage-mode users see the same structured
-     fault info as direct-mode users. Today the daemon stores the flat
-     `faults` list from the LoRa packet and returns it as a JSON array;
-     tier/source/message enrichment would require a lookup table.
+1. **`kiln_server/` Pi4 daemon** -- IMPLEMENTED and running on a local
+   Pi. Phase 14 added Pico-shape augmentation of `/status`, `/alerts`,
+   `/runs`, and `/health` so the Kivy Cottage mode reads the same
+   field set it does in Direct mode. Outstanding:
+   - End-to-end exercise from the Kivy app against the running Pi
+     (Phase 14 user test)
+   - ntfy.sh push smoke test from a real fault (any LORA_TIMEOUT or
+     equivalent code can confirm the path)
 2. **Kivy app** -- in progress, see "KivyApp/" section above
 
 ## Known firmware bugs

@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from typing import Callable, Optional
 
+from kivy.clock import Clock
 from kivy.graphics import Color, Rectangle
 from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.button import Button
@@ -17,7 +18,13 @@ from kivy.uix.scrollview import ScrollView
 from kivy.uix.screenmanager import Screen
 
 from kilnapp import theme
-from kilnapp.api.autodetect import DetectResult, MODE_DIRECT, MODE_OFFLINE, MODE_STA
+from kilnapp.api.autodetect import (
+    DetectResult,
+    MODE_COTTAGE,
+    MODE_DIRECT,
+    MODE_OFFLINE,
+    MODE_STA,
+)
 from kilnapp.api.client import (
     AuthError,
     KilnApiClient,
@@ -43,6 +50,32 @@ _OVERRIDE_LABELS = {
     OVERRIDE_COTTAGE: "Force Cottage (Pi4)",
 }
 _OVERRIDE_REVERSE = {v: k for k, v in _OVERRIDE_LABELS.items()}
+
+
+def _fmt_uptime(seconds) -> str:
+    if not seconds:
+        return "0s"
+    s = int(seconds)
+    days, rem = divmod(s, 86400)
+    hours, rem = divmod(rem, 3600)
+    minutes, _ = divmod(rem, 60)
+    if days:
+        return f"{days}d {hours}h {minutes}m"
+    if hours:
+        return f"{hours}h {minutes}m"
+    return f"{minutes}m"
+
+
+def _fmt_last_packet(age_s, ts) -> str:
+    if age_s is None and not ts:
+        return "Last packet: --"
+    if age_s is None:
+        return f"Last packet: ts={ts}"
+    if age_s < 60:
+        return f"Last packet: {int(age_s)}s ago"
+    if age_s < 3600:
+        return f"Last packet: {int(age_s / 60)}m ago"
+    return f"Last packet: {age_s / 3600:.1f}h ago"
 
 
 def _section_header(text: str) -> Label:
@@ -160,6 +193,38 @@ class SettingsScreen(Screen):
         form.add_widget(self.module_upload_btn)
         self._apply_tools_gate()
 
+        # ---- Daemon info (cottage mode) -----------------------------------
+        # Populated from Pi4 GET /health when connected to the daemon. The
+        # whole section is hidden in AP/STA mode because none of the
+        # fields (environment, uptime_s, total_packets, ntfy_topic) come
+        # back from the Pico's /health.
+        self.daemon_section = BoxLayout(
+            orientation="vertical",
+            size_hint_y=None,
+            spacing=4,
+            padding=(0, 4, 0, 4),
+        )
+        self.daemon_section.bind(
+            minimum_height=self.daemon_section.setter("height")
+        )
+        self.daemon_header = _section_header("Daemon info (Cottage)")
+        self.daemon_section.add_widget(self.daemon_header)
+        self.daemon_env = self._daemon_label("Environment: --")
+        self.daemon_uptime = self._daemon_label("Uptime: --")
+        self.daemon_packets = self._daemon_label("Packets received: --")
+        self.daemon_last_packet = self._daemon_label("Last packet: --")
+        self.daemon_ntfy = self._daemon_label("ntfy.sh topic: --")
+        for w in (
+            self.daemon_env,
+            self.daemon_uptime,
+            self.daemon_packets,
+            self.daemon_last_packet,
+            self.daemon_ntfy,
+        ):
+            self.daemon_section.add_widget(w)
+        form.add_widget(self.daemon_section)
+        self._apply_daemon_section_visibility()
+
         # ---- Save + status -----------------------------------------------
         form.add_widget(_section_header(""))
         form.add_widget(_button("Save and reconnect", self._save))
@@ -194,6 +259,10 @@ class SettingsScreen(Screen):
             and hasattr(self, "module_upload_btn")
         ):
             self._apply_tools_gate()
+        if hasattr(self, "daemon_section"):
+            self._apply_daemon_section_visibility()
+            if self._current_mode == MODE_COTTAGE:
+                self._fetch_daemon_info()
 
     def _apply_tools_gate(self) -> None:
         direct = self._current_mode in (MODE_DIRECT, MODE_STA)
@@ -236,6 +305,82 @@ class SettingsScreen(Screen):
             return
         if self._on_navigate is not None:
             self._on_navigate("module_upload")
+
+    # ---- daemon info ------------------------------------------------------
+
+    @staticmethod
+    def _daemon_label(text: str) -> Label:
+        lbl = Label(
+            text=text,
+            color=theme.TEXT_SECONDARY,
+            font_size="13sp",
+            size_hint_y=None,
+            height=20,
+            halign="left",
+            valign="middle",
+        )
+        lbl.bind(size=lambda w, s: setattr(w, "text_size", s))
+        return lbl
+
+    def _apply_daemon_section_visibility(self) -> None:
+        """Show daemon labels only in Cottage mode; show a short hint
+        otherwise so the section is self-explanatory.
+
+        We keep the section attached in all modes because Kivy's BoxLayout
+        height-binding fights with a manual `height=0` write (any child
+        layout pass restores it from minimum_height). Toggling label text
+        is cheap and avoids that race.
+        """
+        show = self._current_mode == MODE_COTTAGE
+        if show:
+            # Labels will be filled by the next /health call.
+            return
+        # Out-of-mode: clear all but env to a hint message.
+        self.daemon_env.text = "Environment: (connect via Cottage mode)"
+        self.daemon_uptime.text = "Uptime: --"
+        self.daemon_packets.text = "Packets received: --"
+        self.daemon_last_packet.text = "Last packet: --"
+        self.daemon_ntfy.text = "ntfy.sh topic: --"
+
+    def _fetch_daemon_info(self) -> None:
+        """Pull GET /health from the Pi4 and update the labels."""
+        if self._current_mode != MODE_COTTAGE:
+            return
+        client = self.connection.client
+        if client.config.base_url is None:
+            return
+
+        def work():
+            return client.health_current()
+
+        def done(result, err):
+            if err is not None or not isinstance(result, dict):
+                self.daemon_env.text = f"Daemon unreachable: {err}" if err else "Daemon: --"
+                return
+            env = result.get("environment") or "--"
+            self.daemon_env.text = f"Environment: {env}"
+            uptime = result.get("uptime_s")
+            self.daemon_uptime.text = (
+                f"Uptime: {_fmt_uptime(uptime)}" if uptime is not None else "Uptime: --"
+            )
+            total = result.get("total_packets")
+            self.daemon_packets.text = (
+                f"Packets received: {total}" if total is not None else "Packets received: --"
+            )
+            age = result.get("last_packet_age_s")
+            ts = result.get("last_packet_ts")
+            self.daemon_last_packet.text = _fmt_last_packet(age, ts)
+            topic = result.get("ntfy_topic") or "--"
+            self.daemon_ntfy.text = f"ntfy.sh topic: {topic}"
+
+        call_async(work, done)
+
+    def on_pre_enter(self, *_args):
+        # Refresh daemon info every time the user opens Settings. The
+        # underlying connection listener also pulls when we transition
+        # into Cottage mode, but a manual visit deserves fresh numbers.
+        if self._current_mode == MODE_COTTAGE:
+            Clock.schedule_once(lambda _dt: self._fetch_daemon_info(), 0)
 
     # ---- helpers -----------------------------------------------------------
 

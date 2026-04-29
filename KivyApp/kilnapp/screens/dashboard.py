@@ -45,6 +45,7 @@ from kilnapp.widgets.banners import (
 )
 from kilnapp.widgets.cards import Panel, small_label, value_label
 from kilnapp.widgets.dialog import confirm
+from kilnapp.widgets.lora_link import LoraLinkPanel
 
 
 REFRESH_AP_S = 10
@@ -103,6 +104,27 @@ def _fmt_target(v: Optional[float], suffix: str) -> str:
     if v is None:
         return ""
     return f"target {v:.1f} {suffix}"
+
+
+def _rssi_bars(rssi_dbm: Optional[float]) -> int:
+    """Map an RSSI in dBm to a 0-5 bar count.
+
+    The Ra-02 link spec calls 'better than -115 dBm at SF9' a healthy
+    long-range link. The cutoffs here are tuned for that band: anything
+    above -60 dBm is line-of-sight strong, below -110 dBm is on the
+    edge of decode.
+    """
+    if rssi_dbm is None:
+        return 0
+    if rssi_dbm >= -60:
+        return 5
+    if rssi_dbm >= -75:
+        return 4
+    if rssi_dbm >= -90:
+        return 3
+    if rssi_dbm >= -105:
+        return 2
+    return 1
 
 
 def _fmt_age(seconds: float) -> str:
@@ -249,6 +271,12 @@ class DashboardScreen(Screen):
             self.equipment_panel.add_widget(w)
         content.add_widget(self.equipment_panel)
 
+        # LoRa link panel - inserted into the layout only in cottage mode
+        # (see _refresh_lora_panel_visibility). Cached here so we don't
+        # rebuild the widget on every status refresh.
+        self.lora_panel = LoraLinkPanel()
+        self._lora_panel_attached = False
+
         # Rail currents
         self.rails_panel = Panel()
         self.rails_panel.add_widget(small_label("Rails", bold=True))
@@ -312,10 +340,34 @@ class DashboardScreen(Screen):
         self._current_mode = result.mode
         self._reschedule()
         self._refresh_action_row()
+        self._refresh_lora_panel_visibility()
         if result.mode != MODE_OFFLINE:
             self.refresh_now()
         else:
             self._update_footer()
+
+    def _refresh_lora_panel_visibility(self) -> None:
+        """Add/remove the LoRa link panel depending on the active mode.
+
+        Per the spec the panel is Cottage-only - it'd be empty in AP/STA
+        mode (the Pico's /status doesn't carry RSSI). The panel sits
+        directly above the Rails panel so removal/addition can use the
+        Rails panel as the insertion anchor.
+        """
+        want_visible = self._current_mode == MODE_COTTAGE
+        if want_visible == self._lora_panel_attached:
+            return
+        if want_visible:
+            children = self._content.children  # reversed
+            try:
+                idx = children.index(self.rails_panel)
+            except ValueError:
+                idx = 0
+            self._content.add_widget(self.lora_panel, index=idx + 1)
+            self._lora_panel_attached = True
+        else:
+            self._content.remove_widget(self.lora_panel)
+            self._lora_panel_attached = False
 
     def _refresh_interval(self) -> int:
         if self._current_mode == MODE_COTTAGE:
@@ -483,6 +535,18 @@ class DashboardScreen(Screen):
             self.eq_circ.text = f"Circulation fans: ON{pct_str}"
         else:
             self.eq_circ.text = "Circulation fans: OFF"
+
+        # LoRa link (cottage mode only - panel only attached in that mode)
+        if self._lora_panel_attached:
+            rssi = data.get("lora_rssi")
+            snr = data.get("lora_snr")
+            age = data.get("last_packet_age_s")
+            self.lora_panel.update(
+                rssi_dbm=rssi,
+                snr_db=snr,
+                bars=_rssi_bars(rssi),
+                age_s=age,
+            )
 
         # Rails
         self.rail_12v.text = "12V: " + _fmt_ma(data.get("current_12v_ma"))
