@@ -17,7 +17,7 @@ import threading
 import time
 from typing import Any, Dict, List, Optional, Tuple
 
-from .database import Database
+from .database import BOOLEAN_TELEMETRY_COLS, TELEMETRY_COLUMNS, Database
 from .notifier import Notifier
 
 log = logging.getLogger(__name__)
@@ -296,13 +296,20 @@ def _parse_alert(text: str) -> Dict[str, Any]:
         except ValueError:
             return None
 
+    # `or`-chain would collapse a legitimate 0.0 to the next fallback,
+    # so prefer the first non-None.
+    value: Optional[float] = next(
+        (v for v in (_float_or_none(k) for k in ("value", "temp", "rh"))
+         if v is not None),
+        None,
+    )
+
     return {
         "code": code,
         "message": text,
         "message_extra": "; ".join(extras) if extras else None,
         "stage": _int_or_none("stage"),
-        "value": _float_or_none("value") or _float_or_none("temp")
-                 or _float_or_none("rh"),
+        "value": value,
         "limit_val": _float_or_none("limit"),
     }
 
@@ -419,28 +426,17 @@ class LoraReceiver(threading.Thread):
             run_id = self.db.open_run(started_at=ts)
             log.info("lora-rx: opened run %d at ts=%d", run_id, ts)
 
-        record = {col: None for col in (
-            "ts", "received_at", "run_id",
-            "stage", "stage_type", "temp_lumber", "temp_intake",
-            "rh_lumber", "rh_intake", "mc_channel_1", "mc_channel_2",
-            "heater_on", "vent_open", "vent_reason",
-            "exhaust_fan_pct", "exhaust_fan_rpm",
-            "circ_fan_on", "circ_fan_pct",
-            "current_12v_ma", "current_5v_ma", "faults",
-            "lora_rssi", "lora_snr",
-        )}
+        record: Dict[str, Any] = {col: None for col in TELEMETRY_COLUMNS}
         record.update(data)
         record["ts"] = int(data.get("ts") or received_at)
         record["received_at"] = received_at
         record["run_id"] = run_id
         record["lora_rssi"] = rssi
         record["lora_snr"] = snr
-        # Booleans to 0/1.
-        for b in ("heater_on", "vent_open", "circ_fan_on"):
+        for b in BOOLEAN_TELEMETRY_COLS:
             v = record.get(b)
-            if v is None:
-                continue
-            record[b] = 1 if v else 0
+            if v is not None:
+                record[b] = 1 if v else 0
         self.db.insert_telemetry(record)
 
     def _store_alert(

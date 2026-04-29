@@ -19,6 +19,10 @@ from typing import Any, Dict, Iterable, List, Optional, Tuple
 
 _SCHEMA_FILE = Path(__file__).with_name("schema.sql")
 
+# Telemetry columns stored as 0/1 ints in SQLite but exposed as bool via the
+# /status API and accepted as bool from the LoRa wire format.
+BOOLEAN_TELEMETRY_COLS: Tuple[str, ...] = ("heater_on", "vent_open", "circ_fan_on")
+
 # Telemetry columns the daemon writes. Order matters for insert_telemetry().
 TELEMETRY_COLUMNS: Tuple[str, ...] = (
     "ts",
@@ -141,15 +145,19 @@ class Database:
 
     def list_runs(self, limit: int = 20) -> List[Dict[str, Any]]:
         c = self.conn()
+        # Single GROUP BY pass per child table; avoids the N+1 correlated
+        # subquery pattern that scaled with telemetry row count.
         rows = c.execute(
             """
             SELECT r.id, r.started_at, r.ended_at, r.schedule_name, r.label,
                    r.completed,
-                   (SELECT COUNT(*) FROM telemetry t WHERE t.run_id = r.id)
-                       AS telemetry_count,
-                   (SELECT COUNT(*) FROM alerts a WHERE a.run_id = r.id)
-                       AS alert_count
+                   COALESCE(t.cnt, 0) AS telemetry_count,
+                   COALESCE(a.cnt, 0) AS alert_count
             FROM runs r
+            LEFT JOIN (SELECT run_id, COUNT(*) AS cnt FROM telemetry
+                       GROUP BY run_id) t ON t.run_id = r.id
+            LEFT JOIN (SELECT run_id, COUNT(*) AS cnt FROM alerts
+                       GROUP BY run_id) a ON a.run_id = r.id
             ORDER BY r.started_at DESC
             LIMIT ?
             """,
@@ -184,6 +192,15 @@ class Database:
         if not row:
             return None
         return (int(row["started_at"]), row["ended_at"])
+
+    def get_run(self, run_id: int) -> Optional[Dict[str, Any]]:
+        c = self.conn()
+        row = c.execute(
+            "SELECT id, started_at, ended_at, schedule_name, label, completed "
+            "FROM runs WHERE id = ?",
+            (int(run_id),),
+        ).fetchone()
+        return dict(row) if row else None
 
     # --- telemetry ----------------------------------------------------------
 
@@ -234,12 +251,17 @@ class Database:
         if run_id is not None:
             sql += " AND run_id = ?"
             params.append(int(run_id))
+        # Decimate at SQL time so a 100k-row run with resolution=10 doesn't
+        # materialise 100k Row objects in memory just to discard 90% of them.
+        # `id` is an INTEGER PRIMARY KEY AUTOINCREMENT (insert-order monotonic),
+        # so id-stride approximates the previous Python `rows[::resolution]`.
+        if resolution > 1:
+            sql += " AND (id % ?) = 0"
+            params.append(int(resolution))
         sql += " ORDER BY ts ASC"
 
         c = self.conn()
         rows = c.execute(sql, params).fetchall()
-        if resolution > 1:
-            rows = rows[::int(resolution)]
         return [[row[f] for f in safe_fields] for row in rows]
 
     # --- alerts -------------------------------------------------------------

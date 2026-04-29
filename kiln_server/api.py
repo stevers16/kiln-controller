@@ -23,67 +23,70 @@ from __future__ import annotations
 import datetime
 import logging
 import time
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
 
 from flask import Flask, jsonify, request
 
 from . import __version__
-from .database import HISTORY_FIELDS, Database
+from .database import BOOLEAN_TELEMETRY_COLS, HISTORY_FIELDS, Database
 from .lora_receiver import LoraReceiver
 from .notifier import Notifier
 
 log = logging.getLogger(__name__)
 
 
-# -----------------------------------------------------------------------
-# Alert tier table (mirror of main.py ALERT_CODE_TIERS on the Pico)
-# Used to synthesize `tier` and `level` on /alerts rows and to build
-# fault_details on /status. Codes outside this dict default to "info".
-# Comparisons are case-insensitive.
-# -----------------------------------------------------------------------
+# Tier / level constants. Tier is the canonical severity name; level is the
+# legacy log-style label the Kivy /alerts filter sends.
+TIER_FAULT = "fault"
+TIER_NOTICE = "notice"
+TIER_INFO = "info"
+
+LEVEL_BY_TIER = {
+    TIER_FAULT: "ERROR",
+    TIER_NOTICE: "WARN",
+    TIER_INFO: "INFO",
+}
+
+# Authoritative tier table for codes received over LoRa. Mirrors
+# main.py ALERT_CODE_TIERS on the Pico and FAULT_CODES/NOTICE_CODES in
+# KivyApp/kilnapp/alerts.py. Cross-workstream imports are forbidden by
+# CLAUDE.md, so the three copies must be edited together when codes
+# change.
 ALERT_CODE_TIERS = {
     # Hardware / firmware faults
-    "CIRC_FAN_FAULT": "fault",
-    "EXHAUST_FAN_STALL": "fault",
-    "VENT_STALL": "fault",
-    "SENSOR_LUMBER_FAIL": "fault",
-    "SENSOR_INTAKE_FAIL": "fault",
-    "SENSOR_FAILURE": "fault",
-    "MOISTURE_PROBE_FAIL": "fault",
-    "HEATER_TIMEOUT": "fault",
-    "HEATER_FAULT": "fault",
-    "TEMP_OOR": "fault",
-    "RH_OOR": "fault",
-    "TEMP_OUT_OF_RANGE": "fault",
-    "RH_OUT_OF_RANGE": "fault",
-    "OVER_TEMP": "fault",
-    "SD_FAIL": "fault",
-    "SD_WRITE_FAIL": "fault",
-    "LORA_FAIL": "fault",
-    "LORA_TIMEOUT": "fault",
-    "CURRENT_12V_FAIL": "fault",
-    "CURRENT_5V_FAIL": "fault",
-    "DISPLAY_FAIL": "fault",
-    "MODULE_CHECK_FAILED": "fault",
+    "CIRC_FAN_FAULT": TIER_FAULT,
+    "EXHAUST_FAN_STALL": TIER_FAULT,
+    "VENT_STALL": TIER_FAULT,
+    "SENSOR_LUMBER_FAIL": TIER_FAULT,
+    "SENSOR_INTAKE_FAIL": TIER_FAULT,
+    "SENSOR_FAILURE": TIER_FAULT,
+    "MOISTURE_PROBE_FAIL": TIER_FAULT,
+    "HEATER_TIMEOUT": TIER_FAULT,
+    "HEATER_FAULT": TIER_FAULT,
+    "TEMP_OOR": TIER_FAULT,
+    "RH_OOR": TIER_FAULT,
+    "TEMP_OUT_OF_RANGE": TIER_FAULT,
+    "RH_OUT_OF_RANGE": TIER_FAULT,
+    "OVER_TEMP": TIER_FAULT,
+    "SD_FAIL": TIER_FAULT,
+    "SD_WRITE_FAIL": TIER_FAULT,
+    "LORA_FAIL": TIER_FAULT,
+    "LORA_TIMEOUT": TIER_FAULT,
+    "CURRENT_12V_FAIL": TIER_FAULT,
+    "CURRENT_5V_FAIL": TIER_FAULT,
+    "DISPLAY_FAIL": TIER_FAULT,
+    "MODULE_CHECK_FAILED": TIER_FAULT,
     # Procedural notices
-    "STAGE_GOAL_NOT_MET": "notice",
-    "STAGE_GOAL_NOT_REACHED": "notice",
-    "WATER_PAN_REMINDER": "notice",
+    "STAGE_GOAL_NOT_MET": TIER_NOTICE,
+    "STAGE_GOAL_NOT_REACHED": TIER_NOTICE,
+    "WATER_PAN_REMINDER": TIER_NOTICE,
 }
 
 
 def _classify_tier(code: Optional[str]) -> str:
     if not code:
-        return "info"
-    return ALERT_CODE_TIERS.get(code.upper(), "info")
-
-
-def _level_for_tier(tier: str) -> str:
-    if tier == "fault":
-        return "ERROR"
-    if tier == "notice":
-        return "WARN"
-    return "INFO"
+        return TIER_INFO
+    return ALERT_CODE_TIERS.get(code.upper(), TIER_INFO)
 
 
 # Telemetry fields older than this are treated as stale (run not active).
@@ -135,16 +138,10 @@ def create_app(
         else:
             fields = list(HISTORY_FIELDS)
 
-        run_id = _parse_int(request.args.get("run_id"))
-        # The Kivy History screen (designed against the Pico /history) sends
-        # `run=<id>` rather than `run_id=<id>`. Accept both so the same Kivy
-        # code path works against either daemon.
-        if run_id is None:
-            run_id = _parse_int(request.args.get("run"))
-        start = _parse_int(request.args.get("start"))
-        end = _parse_int(request.args.get("end"))
-        resolution = _parse_int(request.args.get("resolution")) or 1
-        resolution = max(1, resolution)
+        run_id = _run_id_from_args()
+        start = request.args.get("start", type=int)
+        end = request.args.get("end", type=int)
+        resolution = max(1, request.args.get("resolution", default=1, type=int))
 
         # Default range: the latest run, or "everything".
         if start is None or end is None:
@@ -185,8 +182,6 @@ def create_app(
             "fields": safe_fields,
             "rows": rows,
             "run_id": run_id,
-            # Kivy History reads the `run` key from the Pico response;
-            # echo both names so either works.
             "run": run_id,
             "row_count": len(rows),
         })
@@ -194,12 +189,8 @@ def create_app(
     # ---------------------------------------------------------------- alerts
     @app.get("/alerts")
     def alerts():
-        limit = _parse_int(request.args.get("limit")) or 50
-        run_id = _parse_int(request.args.get("run_id"))
-        # Accept the Kivy app's `run=<id>` parameter as a synonym.
-        if run_id is None:
-            run_id = _parse_int(request.args.get("run"))
-        # Kivy sends `level=ERROR|WARN`; translate to a tier filter.
+        limit = request.args.get("limit", default=50, type=int)
+        run_id = _run_id_from_args()
         level = (request.args.get("level") or "").upper() or None
         code = request.args.get("code") or None
 
@@ -215,7 +206,7 @@ def create_app(
     # ------------------------------------------------------------------ runs
     @app.get("/runs")
     def runs():
-        limit = _parse_int(request.args.get("limit")) or 20
+        limit = request.args.get("limit", default=20, type=int)
         rows = db.list_runs(limit=limit)
         active_run_id = db.active_run_id()
         return jsonify({
@@ -227,13 +218,12 @@ def create_app(
 
 # --- helpers ---------------------------------------------------------------
 
-def _parse_int(raw: Optional[str]) -> Optional[int]:
-    if raw is None or raw == "":
-        return None
-    try:
-        return int(raw)
-    except ValueError:
-        return None
+def _run_id_from_args() -> Optional[int]:
+    """Read `run_id` (Pi4-native) or `run` (Kivy/Pico-compat) from query args."""
+    rid = request.args.get("run_id", type=int)
+    if rid is None:
+        rid = request.args.get("run", type=int)
+    return rid
 
 
 def _coerce_status(
@@ -251,8 +241,7 @@ def _coerce_status(
     """
     out = dict(row)
 
-    # 0/1 -> bool
-    for b in ("heater_on", "vent_open", "circ_fan_on"):
+    for b in BOOLEAN_TELEMETRY_COLS:
         if out.get(b) is not None:
             out[b] = bool(out[b])
 
@@ -269,12 +258,7 @@ def _coerce_status(
     out["faults"] = codes
     out["active_alerts"] = list(codes)
     out["fault_details"] = [
-        {
-            "code": c,
-            "source": "lora",
-            "message": "",
-            "tier": _classify_tier(c),
-        }
+        {"code": c, "source": "lora", "message": "", "tier": _classify_tier(c)}
         for c in codes
     ]
 
@@ -316,7 +300,7 @@ def _coerce_status(
 
     # Pull the schedule name in from the runs table for the active run.
     if active_run_id is not None:
-        info = _run_info(db, active_run_id)
+        info = db.get_run(active_run_id)
         if info:
             out["schedule_name"] = info.get("schedule_name")
             started = info.get("started_at")
@@ -341,19 +325,6 @@ def _coerce_status(
     return out
 
 
-def _run_info(db: Database, run_id: int) -> Optional[Dict[str, Any]]:
-    """Lightweight lookup of a single run row."""
-    c = db.conn()
-    row = c.execute(
-        "SELECT id, started_at, ended_at, schedule_name, label, completed "
-        "FROM runs WHERE id = ?",
-        (int(run_id),),
-    ).fetchone()
-    if not row:
-        return None
-    return dict(row)
-
-
 def _decorate_alert(row: Dict[str, Any]) -> Dict[str, Any]:
     """Add the `tier` / `level` / `source` fields the Kivy Alerts screen
     expects on top of the database row. The daemon doesn't track a
@@ -361,10 +332,9 @@ def _decorate_alert(row: Dict[str, Any]) -> Dict[str, Any]:
     to "lora" - mirrors how the Pico tags injected fault rows.
     """
     out = dict(row)
-    code = out.get("code")
-    tier = _classify_tier(code)
+    tier = _classify_tier(out.get("code"))
     out["tier"] = tier
-    out["level"] = _level_for_tier(tier)
+    out["level"] = LEVEL_BY_TIER[tier]
     out.setdefault("source", "lora")
     return out
 
@@ -402,10 +372,5 @@ def _decorate_run(row: Dict[str, Any], active_run_id: Optional[int]) -> Dict[str
     out["data_rows"] = row.get("telemetry_count", 0) or 0
     out["event_count"] = row.get("alert_count", 0) or 0
     out["size_bytes"] = 0
-
-    # Kivy's _RunRow expects the run id under "id" (already present) and
-    # tolerates either string or int, so no work needed there. Emit the
-    # `active` flag explicitly so dropdown / list code can show ACTIVE
-    # without re-querying /status.
-    out["active"] = (active_run_id is not None and row.get("id") == active_run_id)
+    out["active"] = active_run_id is not None and row.get("id") == active_run_id
     return out
