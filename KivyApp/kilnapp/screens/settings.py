@@ -21,9 +21,8 @@ from kilnapp import theme
 from kilnapp.api.autodetect import (
     DetectResult,
     MODE_COTTAGE,
-    MODE_DIRECT,
     MODE_OFFLINE,
-    MODE_STA,
+    is_direct_mode,
 )
 from kilnapp.api.client import (
     AuthError,
@@ -265,7 +264,7 @@ class SettingsScreen(Screen):
                 self._fetch_daemon_info()
 
     def _apply_tools_gate(self) -> None:
-        direct = self._current_mode in (MODE_DIRECT, MODE_STA)
+        direct = is_direct_mode(self._current_mode)
         for btn in (
             self.schedules_btn,
             self.system_test_btn,
@@ -277,31 +276,31 @@ class SettingsScreen(Screen):
             btn.opacity = 1.0 if direct else 0.5
 
     def _goto_schedules(self) -> None:
-        if self._current_mode not in (MODE_DIRECT, MODE_STA):
+        if not is_direct_mode(self._current_mode):
             return
         if self._on_navigate is not None:
             self._on_navigate("schedules")
 
     def _goto_system_test(self) -> None:
-        if self._current_mode not in (MODE_DIRECT, MODE_STA):
+        if not is_direct_mode(self._current_mode):
             return
         if self._on_navigate is not None:
             self._on_navigate("system_test")
 
     def _goto_logs(self) -> None:
-        if self._current_mode not in (MODE_DIRECT, MODE_STA):
+        if not is_direct_mode(self._current_mode):
             return
         if self._on_navigate is not None:
             self._on_navigate("logs")
 
     def _goto_calibration(self) -> None:
-        if self._current_mode not in (MODE_DIRECT, MODE_STA):
+        if not is_direct_mode(self._current_mode):
             return
         if self._on_navigate is not None:
             self._on_navigate("calibration")
 
     def _goto_module_upload(self) -> None:
-        if self._current_mode not in (MODE_DIRECT, MODE_STA):
+        if not is_direct_mode(self._current_mode):
             return
         if self._on_navigate is not None:
             self._on_navigate("module_upload")

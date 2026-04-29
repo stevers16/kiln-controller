@@ -31,39 +31,12 @@ from kilnapp import theme
 from kilnapp.api.autodetect import DetectResult, MODE_OFFLINE
 from kilnapp.api.client import call_async
 from kilnapp.connection import ConnectionManager
+from kilnapp.format import format_run_label, format_size
 from kilnapp.widgets.cards import Panel, small_label, value_label
 from kilnapp.widgets.dialog import confirm
 
 
 REFRESH_INTERVAL_S = 30
-
-
-def _fmt_size(b: int) -> str:
-    if b < 1024:
-        return f"{b} B"
-    if b < 1024 * 1024:
-        return f"{b / 1024:.1f} KB"
-    return f"{b / (1024 * 1024):.1f} MB"
-
-
-def _run_primary_label(run: Dict[str, Any]) -> str:
-    """Primary 1-line label for a run: prefers `ended_at_str` from the
-    Pico /runs response (derived from file mtime and formatted on the
-    server when the RTC was set). Falls back to the start date parsed
-    from the rid, then to the raw rid.
-
-    Every branch forces str() because MicroPython JSON can surface ints
-    or None in fields we expect to be strings (e.g. if an older firmware
-    is still running on the Pico).
-    """
-    ended = run.get("ended_at_str")
-    if ended:
-        return str(ended)
-    started = run.get("started_at_str")
-    if started and "-" in str(started):
-        return str(started)
-    rid = run.get("id")
-    return str(rid) if rid else "?"
 
 
 # ---- Status badge ----------------------------------------------------------
@@ -120,7 +93,7 @@ class _RunRow(Panel):
         header = BoxLayout(
             orientation="horizontal", size_hint_y=None, height=20, spacing=6
         )
-        ts_lbl = value_label(_run_primary_label(run), size="14sp")
+        ts_lbl = value_label(format_run_label(run), size="14sp")
         ts_lbl.size_hint_x = 1
         header.add_widget(ts_lbl)
         header.add_widget(_StatusBadge(is_active))
@@ -141,7 +114,7 @@ class _RunRow(Panel):
         data_rows = run.get("data_rows", 0)
         event_count = run.get("event_count", 0)
         size = run.get("size_bytes", 0)
-        detail = f"{data_rows} data rows, {event_count} events, {_fmt_size(size)}"
+        detail = f"{data_rows} data rows, {event_count} events, {format_size(size)}"
         self.add_widget(small_label(detail, size="11sp"))
 
         # Make entire panel tappable
@@ -205,7 +178,7 @@ class _RunDetail(BoxLayout):
 
         # Run info panel
         info = Panel()
-        info.add_widget(value_label(_run_primary_label(run), size="16sp"))
+        info.add_widget(value_label(format_run_label(run), size="16sp"))
 
         rid = run.get("id") or "?"
         info.add_widget(small_label(f"id: {rid}"))
@@ -266,7 +239,7 @@ class _RunDetail(BoxLayout):
             small_label(f"  {run.get('data_rows', 0)} rows")
         )
         files.add_widget(
-            small_label(f"Total size: {_fmt_size(run.get('size_bytes', 0))}")
+            small_label(f"Total size: {format_size(run.get('size_bytes', 0))}")
         )
         content.add_widget(files)
 

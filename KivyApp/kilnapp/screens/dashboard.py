@@ -30,9 +30,8 @@ from kilnapp import theme
 from kilnapp.api.autodetect import (
     DetectResult,
     MODE_COTTAGE,
-    MODE_DIRECT,
     MODE_OFFLINE,
-    MODE_STA,
+    is_direct_mode,
 )
 from kilnapp.alerts import split_alerts
 from kilnapp.api.client import call_async
@@ -588,7 +587,7 @@ class DashboardScreen(Screen):
     # ---- action buttons (Start / Stop / Advance) --------------------------
 
     def _is_direct_mode(self) -> bool:
-        return self._current_mode in (MODE_DIRECT, MODE_STA)
+        return is_direct_mode(self._current_mode)
 
     def _refresh_action_row(self) -> None:
         """Rebuild the action button row based on current mode + run state.

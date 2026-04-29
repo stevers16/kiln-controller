@@ -27,22 +27,15 @@ from kivy.uix.scrollview import ScrollView
 from kivy.uix.screenmanager import Screen
 
 from kilnapp import theme
-from kilnapp.api.autodetect import DetectResult, MODE_DIRECT, MODE_OFFLINE, MODE_STA
+from kilnapp.api.autodetect import DetectResult, MODE_OFFLINE, is_direct_mode
 from kilnapp.api.client import call_async
 from kilnapp.connection import ConnectionManager
+from kilnapp.format import format_size
 from kilnapp.widgets.cards import Panel, small_label, value_label
 from kilnapp.widgets.dialog import confirm
 
 
 # ---- helpers ---------------------------------------------------------------
-
-
-def _fmt_size(b: int) -> str:
-    if b < 1024:
-        return f"{b} B"
-    if b < 1024 * 1024:
-        return f"{b / 1024:.1f} KB"
-    return f"{b / (1024 * 1024):.1f} MB"
 
 
 def _duplicate_filename(filename: str) -> str:
@@ -148,7 +141,7 @@ class _ScheduleRow(Panel):
         thickness = info.get("thickness_in")
         thickness_s = f"{thickness} in" if thickness is not None else "?"
         stage_count = info.get("stage_count", 0)
-        size_s = _fmt_size(int(info.get("size_bytes") or 0))
+        size_s = format_size(int(info.get("size_bytes") or 0))
         self.add_widget(
             small_label(
                 f"{species} - {thickness_s} - {stage_count} stages - {size_s}",
@@ -313,7 +306,7 @@ class SchedulesScreen(Screen):
     def _on_connection_change(self, result: DetectResult) -> None:
         self._current_mode = result.mode
         if self.manager and self.manager.current == self.name:
-            if result.mode not in (MODE_DIRECT, MODE_STA):
+            if not is_direct_mode(result.mode):
                 self.status_label.text = (
                     "Direct connection lost - schedules are AP-only."
                 )
@@ -328,7 +321,7 @@ class SchedulesScreen(Screen):
     def _load(self) -> None:
         if self._in_flight:
             return
-        if self._current_mode not in (MODE_DIRECT, MODE_STA):
+        if not is_direct_mode(self._current_mode):
             self.status_label.text = "Direct connection required."
             self._clear_list()
             return
@@ -418,7 +411,7 @@ class SchedulesScreen(Screen):
         to rename). `target_filename` overrides the filename stored on the
         editor (used by Duplicate / New).
         """
-        if self._current_mode not in (MODE_DIRECT, MODE_STA):
+        if not is_direct_mode(self._current_mode):
             self.status_label.text = "Direct connection required."
             return
         self.status_label.text = f"Loading {filename}..."
@@ -441,7 +434,7 @@ class SchedulesScreen(Screen):
         call_async(work, done)
 
     def _on_new(self) -> None:
-        if self._current_mode not in (MODE_DIRECT, MODE_STA):
+        if not is_direct_mode(self._current_mode):
             self.status_label.text = "Direct connection required."
             return
         # Blank template: single drying stage pre-populated per spec.

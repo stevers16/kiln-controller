@@ -41,7 +41,7 @@ from kivy.uix.spinner import Spinner
 from kivy.uix.textinput import TextInput
 
 from kilnapp import theme
-from kilnapp.api.autodetect import DetectResult, MODE_DIRECT, MODE_OFFLINE, MODE_STA
+from kilnapp.api.autodetect import DetectResult, MODE_OFFLINE, is_direct_mode
 from kilnapp.api.client import call_async
 from kilnapp.connection import ConnectionManager
 from kilnapp.widgets.cards import Panel, small_label, value_label
@@ -429,6 +429,10 @@ class ScheduleEditorScreen(Screen):
         self._current_mode_conn: str = MODE_OFFLINE
         self._submit_in_flight = False
         self._stage_rows: List[_StageRow] = []
+        # Last name we auto-derived a filename from. Per-instance so two
+        # editor screens (or the same screen reused across runs) don't
+        # share state.
+        self._last_auto_name: str = ""
 
         # background
         with self.canvas.before:
@@ -768,7 +772,7 @@ class ScheduleEditorScreen(Screen):
     def _on_connection_change(self, result: DetectResult) -> None:
         self._current_mode_conn = result.mode
         if self.manager and self.manager.current == self.name:
-            if result.mode not in (MODE_DIRECT, MODE_STA):
+            if not is_direct_mode(result.mode):
                 self.status_label.text = (
                     "Direct connection lost - returning to Schedules."
                 )
@@ -793,8 +797,6 @@ class ScheduleEditorScreen(Screen):
             self._last_auto_name = self.name_input.text
         else:
             self._last_auto_name = self.name_input.text
-
-    _last_auto_name: str = ""
 
     def _on_thickness_change(self, value: str) -> None:
         if value == "custom":
@@ -944,7 +946,7 @@ class ScheduleEditorScreen(Screen):
             )
             return
 
-        if self._current_mode_conn not in (MODE_DIRECT, MODE_STA):
+        if not is_direct_mode(self._current_mode_conn):
             self.status_label.text = "Direct connection required."
             return
 

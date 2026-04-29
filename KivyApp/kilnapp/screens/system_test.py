@@ -30,7 +30,7 @@ from kivy.uix.scrollview import ScrollView
 from kivy.uix.screenmanager import Screen
 
 from kilnapp import theme
-from kilnapp.api.autodetect import DetectResult, MODE_DIRECT, MODE_OFFLINE, MODE_STA
+from kilnapp.api.autodetect import DetectResult, MODE_OFFLINE, is_direct_mode
 from kilnapp.api.client import call_async
 from kilnapp.connection import ConnectionManager
 from kilnapp.widgets.cards import Panel, small_label, value_label
@@ -346,7 +346,7 @@ class SystemTestScreen(Screen):
 
     def _on_connection_change(self, result: DetectResult) -> None:
         self._current_mode = result.mode
-        direct = result.mode in (MODE_DIRECT, MODE_STA)
+        direct = is_direct_mode(result.mode)
         self.run_btn.disabled = not direct or self._running
         self.run_btn.opacity = 1.0 if direct else 0.5
         if not direct and self._running:
@@ -358,7 +358,7 @@ class SystemTestScreen(Screen):
     def _on_run_pressed(self) -> None:
         if self._running:
             return
-        if self._current_mode not in (MODE_DIRECT, MODE_STA):
+        if not is_direct_mode(self._current_mode):
             return
         confirm(
             "Start system test",
@@ -508,10 +508,7 @@ class SystemTestScreen(Screen):
             # Final tick: stop polling, lock in elapsed, show summary.
             self._tick_elapsed()
             self._stop_polling()
-            self.run_btn.disabled = self._current_mode not in (
-                MODE_DIRECT,
-                MODE_STA,
-            )
+            self.run_btn.disabled = not is_direct_mode(self._current_mode)
             self.progress.value = 1.0
             overall = data.get("overall") or ("pass" if failed == 0 else "fail")
             self.progress_lbl.text = (

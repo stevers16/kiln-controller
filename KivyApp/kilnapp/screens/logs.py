@@ -37,10 +37,11 @@ from kivy.uix.scrollview import ScrollView
 from kivy.uix.screenmanager import Screen
 
 from kilnapp import theme
-from kilnapp.api.autodetect import DetectResult, MODE_DIRECT, MODE_OFFLINE, MODE_STA
+from kilnapp.api.autodetect import DetectResult, MODE_OFFLINE, is_direct_mode
 from kilnapp.api.client import call_async
 from kilnapp.connection import ConnectionManager
 from kilnapp.widgets.cards import Panel, small_label, value_label
+from kilnapp.format import format_size
 from kilnapp.widgets.form import spinner, text_input
 
 
@@ -49,16 +50,6 @@ _LEVEL_OPTIONS = [_LEVEL_ALL, "INFO", "WARN", "ERROR"]
 
 # Any SD >= 80% full shows a warning tint on the storage bar.
 _STORAGE_WARN_FRAC = 0.80
-
-
-def _fmt_size(b: int) -> str:
-    if b < 1024:
-        return f"{b} B"
-    if b < 1024 * 1024:
-        return f"{b / 1024:.1f} KB"
-    if b < 1024 * 1024 * 1024:
-        return f"{b / (1024 * 1024):.1f} MB"
-    return f"{b / (1024 * 1024 * 1024):.2f} GB"
 
 
 def _downloads_dir() -> Path:
@@ -163,8 +154,8 @@ class _StorageBar(Panel):
         frac = min(1.0, used / total)
         self.bar.value = frac
         self.summary.text = (
-            f"{_fmt_size(used)} used / {_fmt_size(total)} total  "
-            f"({_fmt_size(free)} free, {files} files)"
+            f"{format_size(used)} used / {format_size(total)} total  "
+            f"({format_size(free)} free, {files} files)"
         )
         if frac >= _STORAGE_WARN_FRAC:
             self.warn.text = f"Warning: SD card over {int(_STORAGE_WARN_FRAC * 100)}% full"
@@ -226,7 +217,7 @@ class _LogSetRow(Panel):
         size = run.get("size_bytes", 0)
         self.add_widget(
             small_label(
-                f"Events {event_count}  |  Data rows {data_rows}  |  {_fmt_size(size)}",
+                f"Events {event_count}  |  Data rows {data_rows}  |  {format_size(size)}",
                 size="11sp",
             )
         )
@@ -508,7 +499,7 @@ class LogsScreen(Screen):
 
     def _on_connection_change(self, result: DetectResult) -> None:
         self._current_mode = result.mode
-        if result.mode in (MODE_DIRECT, MODE_STA):
+        if is_direct_mode(result.mode):
             # Only auto-refresh when we actually have a Pico to ask.
             if self._viewer is None:
                 self.refresh_now()
@@ -518,7 +509,7 @@ class LogsScreen(Screen):
     def refresh_now(self) -> None:
         if self._in_flight:
             return
-        if self._current_mode not in (MODE_DIRECT, MODE_STA):
+        if not is_direct_mode(self._current_mode):
             self.status_label.text = "Pico not reachable - Logs require direct mode."
             self.storage.set_unknown("-")
             self._list_box.clear_widgets()

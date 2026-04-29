@@ -38,7 +38,7 @@ from kivy.uix.spinner import Spinner
 from kivy.uix.textinput import TextInput
 
 from kilnapp import theme
-from kilnapp.api.autodetect import DetectResult, MODE_DIRECT, MODE_OFFLINE, MODE_STA
+from kilnapp.api.autodetect import DetectResult, MODE_OFFLINE, is_direct_mode
 from kilnapp.api.client import call_async
 from kilnapp.connection import ConnectionManager
 from kilnapp.widgets.cards import Panel, small_label, value_label
@@ -339,7 +339,7 @@ class StartRunScreen(Screen):
         # If the app drops out of AP/STA mode while the wizard is up, bail
         # back to Dashboard - the AP-only POST would fail anyway.
         if self.manager and self.manager.current == self.name:
-            if result.mode not in (MODE_DIRECT, MODE_STA):
+            if not is_direct_mode(result.mode):
                 self.status_label.text = (
                     "Direct connection lost - returning to Dashboard."
                 )
@@ -371,7 +371,7 @@ class StartRunScreen(Screen):
     def _load_schedules(self) -> None:
         if self._in_flight:
             return
-        if self._current_mode not in (MODE_DIRECT, MODE_STA):
+        if not is_direct_mode(self._current_mode):
             self.status_label.text = "Direct connection required."
             return
         if self.connection.client.config.base_url is None:

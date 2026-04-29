@@ -40,7 +40,7 @@ from kivy.uix.scrollview import ScrollView
 from kivy.uix.screenmanager import Screen
 
 from kilnapp import theme
-from kilnapp.api.autodetect import DetectResult, MODE_DIRECT, MODE_OFFLINE, MODE_STA
+from kilnapp.api.autodetect import DetectResult, MODE_OFFLINE, is_direct_mode
 from kilnapp.api.client import call_async
 from kilnapp.connection import ConnectionManager
 from kilnapp.widgets.cards import Panel, small_label, value_label
@@ -459,7 +459,7 @@ class CalibrationScreen(Screen):
 
     def _on_connection_change(self, result: DetectResult) -> None:
         self._current_mode = result.mode
-        direct = result.mode in (MODE_DIRECT, MODE_STA)
+        direct = is_direct_mode(result.mode)
         for btn in (self.take_btn, self.save_btn, self.reset_btn):
             btn.disabled = not direct
             btn.opacity = 1.0 if direct else 0.5
@@ -470,7 +470,7 @@ class CalibrationScreen(Screen):
         """Fetch calibration then live reading. Kept sequential-ish (two
         independent async calls) so a slow response on one doesn't starve
         the other - same pattern as Runs/Logs screens."""
-        if self._current_mode not in (MODE_DIRECT, MODE_STA):
+        if not is_direct_mode(self._current_mode):
             self.status_label.text = "Pico not reachable - calibration requires direct mode."
             return
         client = self.connection.client
@@ -512,7 +512,7 @@ class CalibrationScreen(Screen):
         self.ch2.set_current_offset(ch2)
 
     def _take_reading(self) -> None:
-        if self._current_mode not in (MODE_DIRECT, MODE_STA):
+        if not is_direct_mode(self._current_mode):
             return
         client = self.connection.client
         if client.config.base_url is None:
@@ -538,7 +538,7 @@ class CalibrationScreen(Screen):
     # ---- save / reset -----------------------------------------------------
 
     def _save(self) -> None:
-        if self._current_mode not in (MODE_DIRECT, MODE_STA):
+        if not is_direct_mode(self._current_mode):
             return
         pending_ch1 = self.ch1.proposed_offset is not None
         pending_ch2 = self.ch2.proposed_offset is not None
@@ -577,7 +577,7 @@ class CalibrationScreen(Screen):
         call_async(work, done)
 
     def _reset(self) -> None:
-        if self._current_mode not in (MODE_DIRECT, MODE_STA):
+        if not is_direct_mode(self._current_mode):
             return
         confirm(
             "Reset calibration",

@@ -23,6 +23,7 @@ DOT_OFFLINE = (0.85, 0.25, 0.25, 1)  # red - no connection
 # Severity (used later for alerts/banners)
 SEVERITY_OK = (0.20, 0.78, 0.35, 1)
 SEVERITY_WARN = (0.95, 0.65, 0.15, 1)
+SEVERITY_NOTICE = (0.78, 0.55, 0.10, 1)
 SEVERITY_ERROR = (0.85, 0.25, 0.25, 1)
 
 # Sizing

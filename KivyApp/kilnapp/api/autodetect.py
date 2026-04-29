@@ -45,6 +45,16 @@ MODE_STA = "sta"           # Pico station mode
 MODE_OFFLINE = "offline"
 
 
+def is_direct_mode(mode: str) -> bool:
+    """True for any mode that talks to the Pico directly (AP or STA).
+
+    Used to gate write actions: the Pi4 daemon is read-only, so AP/STA are
+    the only modes where commands like /run/start, /schedules/save etc. are
+    available.
+    """
+    return mode in (MODE_DIRECT, MODE_STA)
+
+
 @dataclass
 class DetectResult:
     mode: str                       # one of MODE_*

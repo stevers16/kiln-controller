@@ -11,6 +11,7 @@ on the Kivy main thread whenever detection completes.
 
 from __future__ import annotations
 
+import dataclasses
 import time
 from typing import Callable, List
 
@@ -20,10 +21,9 @@ from kivy.logger import Logger
 from kilnapp.api.autodetect import (
     DetectResult,
     MODE_COTTAGE,
-    MODE_DIRECT,
     MODE_OFFLINE,
-    MODE_STA,
     autodetect,
+    is_direct_mode,
 )
 from kilnapp.api.client import KilnApiClient, call_async
 from kilnapp.storage import Settings, SettingsStore
@@ -60,7 +60,7 @@ class ConnectionManager:
             try:
                 cb(self.last_result)
             except Exception as e:  # noqa: BLE001
-                print(f"[connection] listener error: {e}")
+                Logger.warning(f"kiln: connection listener error: {e}")
 
     # ---- settings management ----------------------------------------------
 
@@ -140,7 +140,7 @@ class ConnectionManager:
         if not self.settings.auto_sync_rtc:
             return
         # Only AP/STA modes support /time (Pi4 daemon is read-only).
-        if self.last_result.mode not in (MODE_DIRECT, MODE_STA):
+        if not is_direct_mode(self.last_result.mode):
             return
         client_snapshot = self.client
 
@@ -184,18 +184,9 @@ class ConnectionManager:
                 Logger.warning(f"kiln: RTC sync failed: {err}")
                 return
             # Persist the successful sync time so we don't hammer /time
-            # on every reconnect.
-            self.settings = Settings(
-                pico_ip=self.settings.pico_ip,
-                pico_port=self.settings.pico_port,
-                pico_sta_ip=self.settings.pico_sta_ip,
-                pi4_ip=self.settings.pi4_ip,
-                pi4_port=self.settings.pi4_port,
-                api_key=self.settings.api_key,
-                connection_override=self.settings.connection_override,
-                last_rtc_sync=now_s,
-                auto_sync_rtc=self.settings.auto_sync_rtc,
-            )
+            # on every reconnect. dataclasses.replace preserves any field
+            # added later without needing to update this site.
+            self.settings = dataclasses.replace(self.settings, last_rtc_sync=now_s)
             self.store.save(self.settings)
             Logger.info(f"kiln: RTC synced to unix ts {now_s}")
 

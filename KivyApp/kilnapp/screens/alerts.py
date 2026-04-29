@@ -38,6 +38,7 @@ from kilnapp.alerts import (
 from kilnapp.api.autodetect import DetectResult, MODE_OFFLINE
 from kilnapp.api.client import call_async
 from kilnapp.connection import ConnectionManager
+from kilnapp.format import format_run_label
 from kilnapp.widgets.cards import Panel, small_label, value_label
 from kilnapp.widgets.form import spinner
 
@@ -166,7 +167,7 @@ class _TierBadge(BoxLayout):
         super().__init__(orientation="vertical", **kwargs)
         self.size_hint = (None, None)
         self.size = (60, 18)
-        bg = theme.SEVERITY_ERROR if tier == TIER_FAULT else (0.78, 0.55, 0.10, 1)
+        bg = theme.SEVERITY_ERROR if tier == TIER_FAULT else theme.SEVERITY_NOTICE
         text = tier.upper()
         with self.canvas.before:
             self._bg = Color(*bg)
@@ -319,7 +320,7 @@ class AlertsScreen(Screen):
                 return
             for r in self._known_runs:
                 if r.get("id") == run_id:
-                    label = self._format_run_label(r)
+                    label = format_run_label(r)
                     if label in self.run_spinner.values:
                         self.run_spinner.text = label
                         return
@@ -350,7 +351,7 @@ class AlertsScreen(Screen):
             if err is None and isinstance(result, dict):
                 self._known_runs = result.get("runs") or []
                 values = ["Current run"] + [
-                    self._format_run_label(r) for r in self._known_runs
+                    format_run_label(r) for r in self._known_runs
                 ]
                 self.run_spinner.values = values
             sync_spinner()
@@ -390,28 +391,10 @@ class AlertsScreen(Screen):
         else:
             # Find the run id matching this label
             for run in self._known_runs:
-                if self._format_run_label(run) == text:
+                if format_run_label(run) == text:
                     self._current_run = run.get("id")
                     break
         self.refresh_now()
-
-    @staticmethod
-    def _format_run_label(run: Dict[str, Any]) -> str:
-        """Friendly label for a run. Prefers the formatted ended
-        timestamp (from file mtime), falls back to the start date parsed
-        from the rid, then to the raw rid.
-
-        Every branch forces str(): Pi4 /runs returns integer primary
-        keys, Pico returns strings - both need to survive Spinner.values.
-        """
-        ended = run.get("ended_at_str")
-        if ended:
-            return str(ended)
-        started = run.get("started_at_str")
-        if started and "-" in str(started):
-            return str(started)
-        rid = run.get("id")
-        return str(rid) if rid is not None else "?"
 
     # ---- data fetching -----------------------------------------------------
 
@@ -430,7 +413,7 @@ class AlertsScreen(Screen):
                 return
             runs = result.get("runs") or []
             self._known_runs = runs
-            values = ["Current run"] + [self._format_run_label(r) for r in runs]
+            values = ["Current run"] + [format_run_label(r) for r in runs]
             current_text = self.run_spinner.text
             self.run_spinner.values = values
             if current_text not in values:

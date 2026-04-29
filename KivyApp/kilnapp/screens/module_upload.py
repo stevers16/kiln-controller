@@ -34,6 +34,7 @@ elapsed counter is what the user gets.
 
 from __future__ import annotations
 
+import json
 import time
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
@@ -50,9 +51,10 @@ from kivy.uix.scrollview import ScrollView
 from kivy.uix.screenmanager import Screen
 
 from kilnapp import theme
-from kilnapp.api.autodetect import DetectResult, MODE_DIRECT, MODE_OFFLINE, MODE_STA
+from kilnapp.api.autodetect import DetectResult, MODE_OFFLINE, is_direct_mode
 from kilnapp.api.client import call_async
 from kilnapp.connection import ConnectionManager
+from kilnapp.format import format_size
 from kilnapp.widgets.cards import Panel, small_label, value_label
 from kilnapp.widgets.dialog import confirm
 from kilnapp.widgets.form import text_input
@@ -72,14 +74,6 @@ _MAIN_PY_WARNING = (
 _MAX_BYTES = 512 * 1024  # matches firmware cap
 _RECONNECT_POLL_S = 3.0
 _RECONNECT_TIMEOUT_S = 30.0
-
-
-def _fmt_size(b: int) -> str:
-    if b < 1024:
-        return f"{b} B"
-    if b < 1024 * 1024:
-        return f"{b / 1024:.1f} KB"
-    return f"{b / (1024 * 1024):.2f} MB"
 
 
 def _target_for_filename(fname: str) -> str:
@@ -399,7 +393,7 @@ class ModuleUploadScreen(Screen):
 
     def _on_connection_change(self, result: DetectResult) -> None:
         self._current_mode = result.mode
-        direct = result.mode in (MODE_DIRECT, MODE_STA)
+        direct = is_direct_mode(result.mode)
         self.pick_btn.disabled = not direct
         self.pick_btn.opacity = 1.0 if direct else 0.5
         self.upload_btn.disabled = not direct or self._uploading
@@ -413,7 +407,7 @@ class ModuleUploadScreen(Screen):
     # ---- picker -----------------------------------------------------------
 
     def _open_picker(self) -> None:
-        if self._current_mode not in (MODE_DIRECT, MODE_STA):
+        if not is_direct_mode(self._current_mode):
             return
         popup = _FilePickerPopup(on_select=self._on_file_picked)
         popup.open()
@@ -439,7 +433,7 @@ class ModuleUploadScreen(Screen):
             return
         if size > _MAX_BYTES:
             self.selected_lbl.text = (
-                f"Rejected: {p.name} is {_fmt_size(size)}, max {_fmt_size(_MAX_BYTES)}"
+                f"Rejected: {p.name} is {format_size(size)}, max {format_size(_MAX_BYTES)}"
             )
             self.selected_lbl.color = theme.SEVERITY_ERROR
             self.selected_size_lbl.text = ""
@@ -449,7 +443,7 @@ class ModuleUploadScreen(Screen):
         self._selected_path = p
         self.selected_lbl.color = theme.TEXT_SECONDARY
         self.selected_lbl.text = f"Selected: {p.name}"
-        self.selected_size_lbl.text = f"Size: {_fmt_size(size)}"
+        self.selected_size_lbl.text = f"Size: {format_size(size)}"
         self.target_input.text = _target_for_filename(p.name)
         self._update_main_warning()
         self.status_lbl.text = ""
@@ -468,7 +462,7 @@ class ModuleUploadScreen(Screen):
     def _on_upload_pressed(self) -> None:
         if self._uploading:
             return
-        if self._current_mode not in (MODE_DIRECT, MODE_STA):
+        if not is_direct_mode(self._current_mode):
             return
         if self._selected_path is None:
             self.status_lbl.text = "Pick a file first."
@@ -534,7 +528,7 @@ class ModuleUploadScreen(Screen):
             return
         if len(body) > _MAX_BYTES:
             self.status_lbl.text = (
-                f"File grew to {_fmt_size(len(body))}; exceeds {_fmt_size(_MAX_BYTES)} cap."
+                f"File grew to {format_size(len(body))}; exceeds {format_size(_MAX_BYTES)} cap."
             )
             return
 
@@ -543,7 +537,7 @@ class ModuleUploadScreen(Screen):
         self.upload_btn.disabled = True
         self.upload_btn.opacity = 0.5
         self.progress.value = 0.1  # indeterminate-ish - firmware writes in one shot
-        self.status_lbl.text = f"Uploading {_fmt_size(len(body))} to {target}..."
+        self.status_lbl.text = f"Uploading {format_size(len(body))} to {target}..."
 
         client = self.connection.client
 
@@ -551,10 +545,8 @@ class ModuleUploadScreen(Screen):
             if endpoint == "module":
                 return client.module_upload(target, body)
             # schedule - requires JSON-parsed body
-            import json as _json
-
             try:
-                payload = _json.loads(body.decode("utf-8"))
+                payload = json.loads(body.decode("utf-8"))
             except Exception as e:
                 raise RuntimeError(f"Invalid JSON: {e}") from e
             filename = target.split("/", 1)[1]
@@ -562,10 +554,7 @@ class ModuleUploadScreen(Screen):
 
         def done(result, err):
             self._uploading = False
-            self.upload_btn.disabled = self._current_mode not in (
-                MODE_DIRECT,
-                MODE_STA,
-            )
+            self.upload_btn.disabled = not is_direct_mode(self._current_mode)
             self.upload_btn.opacity = 1.0 if not self.upload_btn.disabled else 0.5
             if err is not None:
                 self.progress.value = 0.0
@@ -642,7 +631,7 @@ class ModuleUploadScreen(Screen):
     # ---- installed modules list ------------------------------------------
 
     def _refresh_modules(self) -> None:
-        if self._current_mode not in (MODE_DIRECT, MODE_STA):
+        if not is_direct_mode(self._current_mode):
             self.modules_box.clear_widgets()
             self.modules_box.add_widget(
                 small_label("Not connected to Pico.")
@@ -672,7 +661,7 @@ class ModuleUploadScreen(Screen):
                 path = str(m.get("path") or "?")
                 size = int(m.get("size_bytes") or 0)
                 mod = str(m.get("modified") or "")
-                line = f"{path}   {_fmt_size(size)}"
+                line = f"{path}   {format_size(size)}"
                 if mod:
                     line += f"   {mod}"
                 self.modules_box.add_widget(small_label(line))

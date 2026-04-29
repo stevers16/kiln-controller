@@ -63,6 +63,7 @@ from kilnapp import theme  # noqa: E402
 from kilnapp.api.autodetect import DetectResult, MODE_OFFLINE  # noqa: E402
 from kilnapp.api.client import call_async  # noqa: E402
 from kilnapp.connection import ConnectionManager  # noqa: E402
+from kilnapp.format import format_run_label  # noqa: E402
 
 
 # ---- Time range options ---------------------------------------------------
@@ -75,25 +76,6 @@ RANGE_OPTIONS = [
     ("Full", None),
 ]
 DEFAULT_RANGE_HOURS: Optional[int] = 24
-
-
-def _run_label_for_dropdown(run: Dict[str, Any]) -> str:
-    """Friendly label for a run in the dropdown. Prefers the formatted
-    ended timestamp (from file mtime), falls back to the start date
-    parsed from the rid, then to the raw rid.
-
-    Every branch forces str() because Pi4 /runs returns integer primary
-    keys and Pico returns strings - both must survive widget text
-    properties.
-    """
-    ended = run.get("ended_at_str")
-    if ended:
-        return str(ended)
-    started = run.get("started_at_str")
-    if started and "-" in str(started):
-        return str(started)
-    rid = run.get("id")
-    return str(rid) if rid is not None else "?"
 
 
 # Auto-refresh interval for active runs (the graph data keeps updating).
@@ -860,7 +842,7 @@ class HistoryScreen(Screen):
             rows = run.get("data_rows", 0)
             is_active = bool(active_id) and run.get("id") == active_id
             suffix = " (active)" if is_active else ""
-            primary = _run_label_for_dropdown(run)
+            primary = format_run_label(run)
             label = f"{primary}{suffix}  --  {rows} rows"
             item = Button(
                 text=label,
@@ -894,7 +876,7 @@ class HistoryScreen(Screen):
         # Prefer the formatted primary label over the raw rid.
         for r in self._runs:
             if r.get("id") == self._selected_run:
-                self.run_button.text = f"Run: {_run_label_for_dropdown(r)}"
+                self.run_button.text = f"Run: {format_run_label(r)}"
                 return
         self.run_button.text = f"Run: {self._selected_run}"
 

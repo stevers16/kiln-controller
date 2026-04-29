@@ -21,6 +21,7 @@ from kivy.uix.label import Label
 from kivy.uix.progressbar import ProgressBar
 
 from kilnapp import theme
+from kilnapp.alerts import humanise
 
 
 # ---- helpers --------------------------------------------------------------
@@ -173,8 +174,6 @@ class _AlertBanner(ButtonBehavior, _ColoredBox):
         if not alerts:
             self._title.text = ""
             return
-        from kilnapp.alerts import humanise
-
         readable = [humanise(c) for c in alerts]
         head = " / ".join(readable[:2])
         more = "" if len(readable) <= 2 else f" (+{len(readable) - 2} more)"
@@ -194,7 +193,6 @@ class NoticeBanner(_AlertBanner):
     """Amber banner for procedural / batch issues."""
 
     PREFIX = "NOTICE"
-    BG = (0.78, 0.55, 0.10, 1)
 
     def __init__(self, on_tap: Optional[Callable[[], None]] = None, **kwargs):
-        super().__init__(bg=self.BG, on_tap=on_tap, **kwargs)
+        super().__init__(bg=theme.SEVERITY_NOTICE, on_tap=on_tap, **kwargs)
