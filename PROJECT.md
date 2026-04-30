@@ -460,8 +460,8 @@ user testing and approval after every phase. Plan file:
 | 11 | Logs screen - view/download remaining (delete moved to Phase 6) | Approved |
 | 12 | Moisture Calibration (AP only) | Approved |
 | 13 | Module Upload (AP only) | Approved |
-| 14 | Pi4 Cottage mode end-to-end | Awaiting approval |
-| 15 | Android packaging via buildozer | Not started |
+| 14 | Pi4 Cottage mode end-to-end | Approved |
+| 15 | Android packaging via buildozer | In progress |
 
 ### Conventions
 - Standard CPython 3 (NOT MicroPython). Free use of `requests`, `pathlib`, etc.
@@ -724,6 +724,59 @@ user testing and approval after every phase. Plan file:
 - After a successful Save or Reset, the screen re-fetches
   `/calibration` + `/moisture/live` so the panel values reflect the
   Pico's actual state rather than whatever the client proposed.
+
+### Phase 15 implementation notes
+- New `KivyApp/buildozer.spec`. Targets API 33 / minapi 21 / NDK API
+  21; archs `arm64-v8a, armeabi-v7a`. `requirements` line lists the
+  full transitive set p4a needs to compile native deps (numpy,
+  matplotlib, pillow, kiwisolver, cycler, dateutil, plyer, android,
+  ...). Permissions: INTERNET + ACCESS_NETWORK_STATE.
+  Orientation portrait. p4a.branch master.
+- New `KivyApp/kilnapp/platform_helpers.py` centralises the three
+  desktop-vs-Android divergences: `IS_ANDROID`, `download_dir()`,
+  `request_android_permissions()`, and `pick_file()`. Screens stay
+  platform-agnostic and call into this module.
+- File saves on Android target the app's private sandbox
+  (`App.user_data_dir`). Saving into the public `/sdcard/Download`
+  folder requires either WRITE_EXTERNAL_STORAGE on legacy API levels
+  or a MediaStore call on API 29+; deferred until there's a real
+  user need - the status-line "Saved to ..." path is informative
+  enough to grab files via USB/MTP.
+  - `screens/logs.py` `_downloads_dir()` removed; `_write_download()`
+    calls `platform_helpers.download_dir()`.
+  - `screens/system_test.py` `_save_results()` similarly simplified
+    (the inline Path.home()/Downloads dance moved into the helper).
+- File picker on Android uses `plyer.filechooser.open_file()` which
+  surfaces the system document picker (SAF). Desktop falls through to
+  the Kivy `FileChooserListView` popup that's been there since
+  Phase 13. `screens/module_upload.py` `_open_picker()` calls
+  `platform_helpers.pick_file()` first; on `False` (desktop, or plyer
+  failed to load) it opens the existing `_FilePickerPopup`.
+- `kilnapp/app.py` `build()` now calls
+  `request_android_permissions()` first thing. INTERNET is install-
+  time on every API level, so the call is a no-op today; it stays as
+  the hook so future runtime permissions land in one place.
+- `requirements.txt` adds `plyer==2.1.0`. Outside Android, plyer's
+  filechooser back-end refuses to load, so `pick_file()` returns
+  False and the desktop FileChooser path runs - no behaviour change
+  on Windows/macOS/Linux.
+- Icon and presplash assets are not yet bundled. Buildozer ships
+  default placeholders if the corresponding `icon.filename` /
+  `presplash.filename` lines stay commented out; both lines are in
+  the spec ready for the user to drop PNGs into
+  `KivyApp/data/icon.png` / `presplash.png` and uncomment.
+- Build host is WSL2 (Ubuntu/Debian) with the Android SDK + NDK
+  already installed in the dev image. `buildozer.spec` sets
+  `android.skip_update = True` so buildozer trusts the existing
+  SDK. The user fills in `android.sdk_path` / `android.ndk_path`
+  locally (paths don't expand `$HOME`, and personal paths
+  shouldn't be committed). New `KivyApp/scripts/build-android.sh`
+  wraps `buildozer android debug` with a sanity check that the
+  SDK path is set. README's "Android build (Phase 15)" section
+  walks the WSL2 flow, including matplotlib version-pinning
+  fallbacks (3.4.3 / 3.5.3) if the 3.10 recipe trips.
+- Smoke-tested on desktop: app boots and shuts down cleanly; all
+  changed screens import cleanly with the new helpers in place.
 
 ### Phase 14 implementation notes
 - Pi4 `kiln_server/api.py` now synthesises the field shape the Kivy

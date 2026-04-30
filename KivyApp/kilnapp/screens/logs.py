@@ -23,10 +23,8 @@ hook this into the SAF in Phase 15 (noted as deferred in the plan).
 from __future__ import annotations
 
 import time
-from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
 
-from kivy.app import App
 from kivy.clock import Clock
 from kivy.graphics import Color, Rectangle
 from kivy.uix.boxlayout import BoxLayout
@@ -40,6 +38,7 @@ from kilnapp import theme
 from kilnapp.api.autodetect import DetectResult, MODE_OFFLINE, is_direct_mode
 from kilnapp.api.client import call_async
 from kilnapp.connection import ConnectionManager
+from kilnapp.platform_helpers import download_dir
 from kilnapp.widgets.cards import Panel, small_label, value_label
 from kilnapp.format import format_size
 from kilnapp.widgets.form import spinner, text_input
@@ -50,22 +49,6 @@ _LEVEL_OPTIONS = [_LEVEL_ALL, "INFO", "WARN", "ERROR"]
 
 # Any SD >= 80% full shows a warning tint on the storage bar.
 _STORAGE_WARN_FRAC = 0.80
-
-
-def _downloads_dir() -> Path:
-    """Resolve a writable target directory for downloads.
-
-    Desktop convention: `~/Downloads`. If that can't be created (e.g.
-    locked-down CI environment) fall back to the Kivy app's user_data_dir,
-    which is guaranteed to exist. Android SAF is deferred to Phase 15.
-    """
-    target = Path.home() / "Downloads"
-    try:
-        target.mkdir(parents=True, exist_ok=True)
-        return target
-    except Exception:
-        app = App.get_running_app()
-        return Path(app.user_data_dir if app else ".")
 
 
 def _line_level(line: str) -> str:
@@ -696,7 +679,7 @@ class LogsScreen(Screen):
         call_async(work, done)
 
     def _write_download(self, fname: str, text: str) -> None:
-        target_dir = _downloads_dir()
+        target_dir = download_dir()
         path = target_dir / fname
         try:
             path.write_text(text, encoding="utf-8")

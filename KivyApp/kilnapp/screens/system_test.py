@@ -33,6 +33,7 @@ from kilnapp import theme
 from kilnapp.api.autodetect import DetectResult, MODE_OFFLINE, is_direct_mode
 from kilnapp.api.client import call_async
 from kilnapp.connection import ConnectionManager
+from kilnapp.platform_helpers import download_dir
 from kilnapp.widgets.cards import Panel, small_label, value_label
 from kilnapp.widgets.dialog import confirm
 
@@ -599,21 +600,9 @@ class SystemTestScreen(Screen):
         if self._last_status is None:
             self.progress_lbl.text = "No results to save yet."
             return
-        from pathlib import Path
-
         text = self._report_text()
-        # Prefer the user's Downloads folder on desktop; fall back to the
-        # app's user_data_dir (which the App class has already created).
-        target_dir = Path.home() / "Downloads"
-        try:
-            target_dir.mkdir(parents=True, exist_ok=True)
-        except Exception:
-            from kivy.app import App as _App
-
-            app = _App.get_running_app()
-            target_dir = Path(app.user_data_dir if app else ".")
         fname = f"kiln_system_test_{time.strftime('%Y%m%d_%H%M%S')}.txt"
-        path = target_dir / fname
+        path = download_dir() / fname
         try:
             path.write_text(text, encoding="utf-8")
         except Exception as e:

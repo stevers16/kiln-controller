@@ -55,6 +55,7 @@ from kilnapp.api.autodetect import DetectResult, MODE_OFFLINE, is_direct_mode
 from kilnapp.api.client import call_async
 from kilnapp.connection import ConnectionManager
 from kilnapp.format import format_size
+from kilnapp.platform_helpers import pick_file
 from kilnapp.widgets.cards import Panel, small_label, value_label
 from kilnapp.widgets.dialog import confirm
 from kilnapp.widgets.form import text_input
@@ -108,9 +109,9 @@ def _primary_button(text: str, on_press, *, width: Optional[int] = None) -> Butt
 
 
 class _FilePickerPopup(Popup):
-    """Standard Kivy FileChooser inside a Popup. On Android the Phase 15
-    Buildozer pass will switch this to plyer/filechooser; desktop uses
-    the built-in widget which is reliable on Windows/macOS/Linux.
+    """Kivy FileChooser inside a Popup. Used on desktop only; Android
+    routes through `platform_helpers.pick_file()` which surfaces the
+    system document picker via plyer.
     """
 
     def __init__(self, on_select: Callable[[str], None], **kwargs):
@@ -408,6 +409,14 @@ class ModuleUploadScreen(Screen):
 
     def _open_picker(self) -> None:
         if not is_direct_mode(self._current_mode):
+            return
+        # On Android, surface the system document picker. On desktop and
+        # if plyer is unavailable for any reason, fall through to the
+        # in-app Kivy FileChooser popup.
+        if pick_file(
+            on_select=self._on_file_picked,
+            filters=["*.py", "*.json"],
+        ):
             return
         popup = _FilePickerPopup(on_select=self._on_file_picked)
         popup.open()

@@ -19,6 +19,7 @@ from kilnapp.api.autodetect import (
     DetectResult,
 )
 from kilnapp.connection import ConnectionManager
+from kilnapp.platform_helpers import request_android_permissions
 from kilnapp.screens.alerts import AlertsScreen
 from kilnapp.screens.calibration import CalibrationScreen
 from kilnapp.screens.dashboard import DashboardScreen
@@ -72,6 +73,11 @@ class KilnApp(App):
     title = "Kiln Controller"
 
     def build(self):
+        # Runtime permissions on Android (no-op elsewhere). INTERNET is
+        # install-time on every API level, so this only matters for
+        # future permission additions; the call stays here as the hook.
+        request_android_permissions()
+
         # Persistent settings + connection manager
         self.settings_store = SettingsStore(self.user_data_dir)
         self.connection = ConnectionManager(self.settings_store)
