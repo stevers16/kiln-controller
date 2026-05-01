@@ -4,6 +4,9 @@ Centralised here so screens stay visually consistent and so we can tweak
 the palette in one place when we revisit styling later.
 """
 
+from kivy.metrics import dp
+
+
 # Backgrounds
 BG_DARK = (0.10, 0.11, 0.13, 1)        # app background
 BG_PANEL = (0.15, 0.16, 0.19, 1)       # cards, top/bottom bars
@@ -26,6 +29,9 @@ SEVERITY_WARN = (0.95, 0.65, 0.15, 1)
 SEVERITY_NOTICE = (0.78, 0.55, 0.10, 1)
 SEVERITY_ERROR = (0.85, 0.25, 0.25, 1)
 
-# Sizing
-TOP_BAR_HEIGHT = 56
-BOTTOM_NAV_HEIGHT = 64
+# Sizing - density-independent so the bars are physically the same size on
+# desktop and Android. Raw pixel values render as thin strips on high-DPI
+# phones (3x density) and disappear behind the system status bar and the
+# bottom gesture indicator.
+TOP_BAR_HEIGHT = dp(56)
+BOTTOM_NAV_HEIGHT = dp(64)

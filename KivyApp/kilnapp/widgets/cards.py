@@ -5,6 +5,7 @@ styling minimal - the goal is correct data flow first, polish second.
 """
 
 from kivy.graphics import Color, Rectangle
+from kivy.metrics import dp
 from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.label import Label
 
@@ -22,8 +23,8 @@ class Panel(BoxLayout):
 
     def __init__(self, **kwargs):
         kwargs.setdefault("orientation", "vertical")
-        kwargs.setdefault("padding", (10, 6, 10, 6))
-        kwargs.setdefault("spacing", 2)
+        kwargs.setdefault("padding", (dp(10), dp(6), dp(10), dp(6)))
+        kwargs.setdefault("spacing", dp(4))
         # Default: hug content vertically. Caller can override.
         auto_size = "size_hint_y" not in kwargs and "height" not in kwargs
         if auto_size:
@@ -40,14 +41,16 @@ class Panel(BoxLayout):
         )
 
 
-def small_label(text: str, *, color=None, bold: bool = False, size: str = "12sp") -> Label:
+def small_label(
+    text: str, *, color=None, bold: bool = False, size: str = "13sp"
+) -> Label:
     lbl = Label(
         text=text,
         color=color or theme.TEXT_SECONDARY,
         font_size=size,
         bold=bold,
         size_hint_y=None,
-        height=16,
+        height=dp(22),
         halign="left",
         valign="middle",
     )
@@ -55,14 +58,14 @@ def small_label(text: str, *, color=None, bold: bool = False, size: str = "12sp"
     return lbl
 
 
-def value_label(text: str, *, color=None, size: str = "16sp") -> Label:
+def value_label(text: str, *, color=None, size: str = "17sp") -> Label:
     lbl = Label(
         text=text,
         color=color or theme.TEXT_PRIMARY,
         font_size=size,
         bold=True,
         size_hint_y=None,
-        height=20,
+        height=dp(26),
         halign="left",
         valign="middle",
     )

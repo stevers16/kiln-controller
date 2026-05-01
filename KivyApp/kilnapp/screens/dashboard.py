@@ -20,6 +20,7 @@ from typing import Any, Dict, Optional
 
 from kivy.clock import Clock
 from kivy.graphics import Color, Rectangle
+from kivy.metrics import dp
 from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.button import Button
 from kivy.uix.label import Label
@@ -216,8 +217,8 @@ class DashboardScreen(Screen):
         scroll = ScrollView(do_scroll_x=False, do_scroll_y=True)
         content = BoxLayout(
             orientation="vertical",
-            padding=(10, 8, 10, 8),
-            spacing=6,
+            padding=(dp(10), dp(8), dp(10), dp(8)),
+            spacing=dp(6),
             size_hint_y=None,
         )
         content.bind(minimum_height=content.setter("height"))
@@ -235,8 +236,11 @@ class DashboardScreen(Screen):
         self._current_advisory = None  # widget currently in `content`
         self._content = content  # so _set_advisory can manipulate it
 
-        # Sensor row: Lumber | Intake
-        sensors = BoxLayout(orientation="horizontal", spacing=8, size_hint_y=None, height=104)
+        # Sensor row: Lumber | Intake. Height must fit five stacked labels
+        # (title + temp value + temp target + rh value + rh target) plus
+        # spacings and panel padding so the panel background contains all
+        # of them; otherwise the title overflows above the bg rectangle.
+        sensors = BoxLayout(orientation="horizontal", spacing=dp(8), size_hint_y=None, height=dp(170))
         self.lumber_panel, self.lumber_widgets = self._build_sensor_panel(
             "Lumber zone", show_targets=True, fill_height=True
         )
@@ -279,7 +283,7 @@ class DashboardScreen(Screen):
         # Rail currents
         self.rails_panel = Panel()
         self.rails_panel.add_widget(small_label("Rails", bold=True))
-        rails_row = BoxLayout(orientation="horizontal", size_hint_y=None, height=22, spacing=12)
+        rails_row = BoxLayout(orientation="horizontal", size_hint_y=None, height=dp(28), spacing=dp(12))
         self.rail_12v = small_label("12V: " + EM_DASH)
         self.rail_5v = small_label("5V: " + EM_DASH)
         rails_row.add_widget(self.rail_12v)
@@ -293,14 +297,13 @@ class DashboardScreen(Screen):
         self.actions_row = BoxLayout(
             orientation="horizontal",
             size_hint_y=None,
-            height=38,
-            spacing=6,
+            height=dp(40),
+            spacing=dp(6),
         )
         content.add_widget(self.actions_row)
 
         # Footer: last update line only (single line, no button)
-        self.footer_label = small_label("Waiting for data...", size="11sp")
-        self.footer_label.height = 18
+        self.footer_label = small_label("Waiting for data...")
         content.add_widget(self.footer_label)
 
         scroll.add_widget(content)
@@ -633,7 +636,7 @@ class DashboardScreen(Screen):
         # Refresh is always present, and pinned to the right
         refresh_btn = self._action_button("Refresh")
         refresh_btn.size_hint_x = None
-        refresh_btn.width = 90
+        refresh_btn.width = dp(96)
         refresh_btn.bind(on_release=lambda _b: self.refresh_now())
         self.actions_row.add_widget(refresh_btn)
 

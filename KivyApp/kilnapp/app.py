@@ -7,6 +7,7 @@ Runs, Settings are all real screens. No placeholders remain.
 from kivy.app import App
 from kivy.core.window import Window
 from kivy.graphics import Color, Rectangle
+from kivy.metrics import dp
 from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.screenmanager import NoTransition, ScreenManager
 
@@ -19,7 +20,7 @@ from kilnapp.api.autodetect import (
     DetectResult,
 )
 from kilnapp.connection import ConnectionManager
-from kilnapp.platform_helpers import request_android_permissions
+from kilnapp.platform_helpers import IS_ANDROID, request_android_permissions
 from kilnapp.screens.alerts import AlertsScreen
 from kilnapp.screens.calibration import CalibrationScreen
 from kilnapp.screens.dashboard import DashboardScreen
@@ -37,8 +38,11 @@ from kilnapp.widgets.bottom_nav import BottomNav
 from kilnapp.widgets.top_bar import TopBar
 
 
-# Phone-shaped window for desktop development.
-Window.size = (390, 780)
+# Phone-shaped window for desktop development. On Android, SDL2 already
+# fills the device screen; pinning a fixed pixel size leaves the app
+# stranded in a corner of the display.
+if not IS_ANDROID:
+    Window.size = (390, 780)
 
 
 TAB_TITLES = {
@@ -60,6 +64,13 @@ TAB_TITLES = {
 class _Root(BoxLayout):
     def __init__(self, **kwargs):
         super().__init__(orientation="vertical", **kwargs)
+        # Reserve space for Android's system status bar (notches /
+        # Dynamic Island can be ~30dp tall) and the bottom gesture
+        # indicator. Without this, the TopBar renders behind the status
+        # bar and the BottomNav's tab labels render under the gesture
+        # pill. Desktop has neither, so no padding there.
+        if IS_ANDROID:
+            self.padding = (0, dp(56), 0, dp(28))
         with self.canvas.before:
             self._bg_color = Color(*theme.BG_DARK)
             self._bg_rect = Rectangle(pos=self.pos, size=self.size)

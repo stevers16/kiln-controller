@@ -2,6 +2,7 @@
 
 from typing import Optional
 
+from kivy.metrics import dp
 from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.label import Label
 from kivy.uix.spinner import Spinner, SpinnerOption
@@ -25,10 +26,10 @@ class _FlatSpinnerOption(SpinnerOption):
         self.background_color = (0.30, 0.32, 0.38, 1)
         self.color = theme.TEXT_PRIMARY
         self.font_size = "14sp"
-        self.height = 36
+        self.height = dp(36)
 
 
-def label(text: str, *, width: int = 130) -> Label:
+def label(text: str, *, width: float = dp(130)) -> Label:
     lbl = Label(
         text=text,
         color=theme.TEXT_SECONDARY,
@@ -57,12 +58,12 @@ def text_input(
         input_filter=input_filter,
         hint_text=hint,
         size_hint_y=None,
-        height=36,
+        height=dp(34),
         font_size="14sp",
         background_color=(1, 1, 1, 1),
         foreground_color=(0.05, 0.05, 0.07, 1),
         cursor_color=(0.05, 0.05, 0.07, 1),
-        padding=(8, 8, 8, 8),
+        padding=(dp(8), dp(8), dp(8), dp(8)),
     )
 
 
@@ -70,8 +71,8 @@ def row(label_text: str, field) -> BoxLayout:
     box = BoxLayout(
         orientation="horizontal",
         size_hint_y=None,
-        height=44,
-        spacing=8,
+        height=dp(36),
+        spacing=dp(8),
     )
     box.add_widget(label(label_text))
     box.add_widget(field)
@@ -83,7 +84,7 @@ def spinner(values, initial: str) -> Spinner:
         text=initial,
         values=values,
         size_hint_y=None,
-        height=36,
+        height=dp(36),
         font_size="14sp",
         background_color=(0.30, 0.32, 0.38, 1),
         color=theme.TEXT_PRIMARY,

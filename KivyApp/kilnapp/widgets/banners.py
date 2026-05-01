@@ -15,6 +15,7 @@ from __future__ import annotations
 from typing import Callable, Optional
 
 from kivy.graphics import Color, Rectangle
+from kivy.metrics import dp
 from kivy.uix.behaviors import ButtonBehavior
 from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.label import Label
@@ -37,8 +38,8 @@ class _ColoredBox(BoxLayout):
 
     def __init__(self, bg=None, **kwargs):
         kwargs.setdefault("orientation", "vertical")
-        kwargs.setdefault("padding", (12, 6, 12, 6))
-        kwargs.setdefault("spacing", 2)
+        kwargs.setdefault("padding", (dp(12), dp(6), dp(12), dp(6)))
+        kwargs.setdefault("spacing", dp(2))
         kwargs.setdefault("size_hint_y", None)
         super().__init__(**kwargs)
         self.bind(minimum_height=self.setter("height"))
@@ -61,7 +62,7 @@ def _line(text: str, *, color, size: str = "13sp", bold: bool = False) -> Label:
         font_size=size,
         bold=bold,
         size_hint_y=None,
-        height=18,
+        height=dp(20),
         halign="left",
         valign="middle",
     )
@@ -80,7 +81,7 @@ class StageBanner(_ColoredBox):
         self._title = _line("No run active", color=theme.TEXT_PRIMARY, size="15sp", bold=True)
         self._subtitle = _line("", color=theme.TEXT_SECONDARY, size="11sp")
         self._progress = ProgressBar(
-            max=100, value=0, size_hint_y=None, height=6
+            max=100, value=0, size_hint_y=None, height=dp(6)
         )
         self.add_widget(self._title)
         self.add_widget(self._subtitle)

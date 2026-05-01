@@ -41,6 +41,10 @@ schedule_name / fault_details / stage_index / last_packet_age_s,
 Pico-style formatted timestamps and data_rows/event_count aliases.
 No ESP32 or MQTT broker in production system.
 
+Kivy app feature-complete and packaged for Android via buildozer
+(WSL2 host, NDK 25b, matplotlib 3.4.3 recipe, dp() sweep + Android
+safe-area padding for high-DPI rendering). All 16 phases approved.
+
 ---
 
 ## Modules -- status summary
@@ -461,7 +465,7 @@ user testing and approval after every phase. Plan file:
 | 12 | Moisture Calibration (AP only) | Approved |
 | 13 | Module Upload (AP only) | Approved |
 | 14 | Pi4 Cottage mode end-to-end | Approved |
-| 15 | Android packaging via buildozer | In progress |
+| 15 | Android packaging via buildozer | Approved |
 
 ### Conventions
 - Standard CPython 3 (NOT MicroPython). Free use of `requests`, `pathlib`, etc.
@@ -778,6 +782,127 @@ user testing and approval after every phase. Plan file:
 - Smoke-tested on desktop: app boots and shuts down cleanly; all
   changed screens import cleanly with the new helpers in place.
 
+#### p4a / buildozer recipe workarounds (carried in `buildozer.spec`
+and project-level setup notes; required to get a clean APK on the
+WSL2 build host)
+- **NDK pinned to 25.2.9519653 (25b).** NDK 27/28 hard-removed
+  `ALooper_pollAll`; the SDL2 bundled with p4a still calls it.
+  README documents installing 25b via `sdkmanager "ndk;25.2.9519653"`
+  and pointing `android.ndk_path` at it. Buildozer's own warning
+  ("Recommended NDK version is 25b") is the canonical hint.
+- **matplotlib pinned to 3.4.3 in `buildozer.spec`** (desktop stays
+  on 3.10.8 in `requirements.txt`). matplotlib 3.6+ dropped
+  `setup.py` in favour of `pyproject.toml`, but the p4a recipe
+  still invokes `python setup.py build_ext`. 3.4.3 is the recipe's
+  battle-tested version. Both versions expose `FigureCanvasKivyAgg`
+  identically, which is the only matplotlib surface we use.
+- **`filetype` added to `buildozer.spec` requirements.** Kivy 2.3.1
+  added `filetype` as an image-format-sniffing dep; pip resolves it
+  on desktop, but p4a only bundles what's explicitly listed.
+  Crash signature without it: `ModuleNotFoundError: No module named
+  'filetype'` from `kivy/core/image/__init__.py:65`.
+- **matplotlib FreeType cross-compile workaround.** matplotlib's
+  bundled `setupext.py` builds its own FreeType 2.6.1 via autoconf,
+  whose `./configure` tries to *run* a compiled binary to
+  feature-detect - cross-compile fails because the binary is ARM
+  but the build host is x86_64. p4a already builds FreeType, so
+  we drop a `setup.cfg` with `[libs] system_freetype = true` into
+  the matplotlib source dir for each arch under
+  `~/.buildozer-kilncontroller/.../other_builds/matplotlib/<arch>__ndk_target_21/matplotlib/`
+  before re-running. Documented in the README.
+- **build_dir moved out of `/mnt/c/...`.** p4a refuses storage-dir
+  paths with spaces; "Kiln Project" has one. `[buildozer] build_dir
+  = /home/<user>/.buildozer-kilncontroller` in the spec keeps the
+  build artifacts under `$HOME` while letting `bin/` (the APK
+  output) stay inside the project for easy access.
+- **Gradle JVM heap bumped via `~/.gradle/gradle.properties`.** The
+  default heap OOMs the `:packageDebug` task; setting
+  `org.gradle.jvmargs=-Xmx4g -XX:MaxMetaspaceSize=1g` clears it.
+- **JDK 17 required by Gradle 8.0.2.** Ubuntu 24.04 ships Java 21
+  by default; pointing `JAVA_HOME` at `/usr/lib/jvm/java-17-openjdk-amd64`
+  is required. README captures the `update-alternatives` / env-var
+  path.
+- **Buildozer installed from git master.** PyPI 1.5.0 still imports
+  `distutils.version.LooseVersion`, which Python 3.12 removed.
+  `pip install --upgrade --force-reinstall "buildozer @
+  git+https://github.com/kivy/buildozer.git@master"` carries the
+  fix.
+- **Android command-line tools.** Buildozer's `tools/bin/sdkmanager`
+  expectation is the legacy path. Modern Android Studio installs
+  to `cmdline-tools/latest/bin/sdkmanager`. README has a one-shot
+  recipe to download the cmdline-tools zip, extract to
+  `cmdline-tools/latest/`, and symlink to `tools/bin/sdkmanager`
+  for buildozer compatibility.
+
+#### High-DPI / Android visual polish (post-build)
+Got the APK building cleanly, then the on-device polish pass: most
+of the app was sized in raw pixels which renders as ~3x smaller on
+a typical phone (3x density). Done in batches as user feedback came
+in.
+- **`Window.size = (390, 780)` gated on desktop-only.** That's the
+  desktop dev-window shim; on Android it pinned the SDL2 window to
+  a 390x780 region of the screen. `if not IS_ANDROID:` keeps it
+  desktop-only.
+- **`dp()` sweep.** TopBar / BottomNav heights, every Panel
+  padding/spacing, every form row + text input, the dashboard
+  sensor row, history toolbar, alerts filter rows, runs cards +
+  status badge, settings section headers + buttons + daemon-info
+  labels - all converted from raw pixels to `dp()` so they scale
+  with display density. `widgets/cards.py` `small_label` /
+  `value_label` defaults bumped (12sp/16sp -> 13sp/17sp; height
+  dp(18)/dp(22) -> dp(22)/dp(26)) so all text reads cleanly on
+  phone.
+- **Android safe-area padding.** `_Root` adds `padding=(0, dp(56),
+  0, dp(28))` on Android only - reserves room above for the
+  system status bar / Dynamic-Island-style cutout, and below for
+  the gesture pill. Without it, TopBar rendered behind the status
+  bar and BottomNav labels were eaten by the gesture indicator.
+  dp(56) cleared every cutout shape we tested; dp(28) cleared the
+  gesture bar.
+- **matplotlib font scale on Android.** matplotlib renders text in
+  literal points (1pt = 1/72"); the default 8pt tick / legend / axis
+  text was physically tiny on a 3x phone. `_MPL_FS_SCALE = 2.4` on
+  Android multiplies all chart fontsizes through new constants
+  (`_MPL_TICK_FS`, `_MPL_LABEL_FS`, `_MPL_LEGEND_FS`, `_MPL_TEXT_FS`)
+  + `matplotlib.rcParams["axes.labelsize"]` / `titlesize`. Desktop
+  unchanged.
+- **Avoided `texture_size` -> `height` rebinding.** First attempt
+  bound `Label.texture_size` to `Label.height` for auto-grow
+  labels, but the `size` -> `text_size` -> `texture_size` ->
+  `height` -> `size` cycle creates a runaway feedback loop in Kivy
+  that grows labels by ~dp(2) per layout pass on Android. Symptoms:
+  cards balloon, tab switches take seconds, UI visibly assembles
+  itself frame-by-frame. Fixed by reverting to static dp() heights
+  big enough to contain the sp() text.
+- **Bottom nav text-only.** Tried Unicode glyphs (⌂ / ⧗ / ⚠ / ☰ /
+  ⚙) for the five tabs - none of them are in Kivy's bundled Roboto,
+  and Kivy doesn't fall back to system fonts on Android, so all
+  rendered as tofu boxes. Dropped the icon row entirely; tabs now
+  show centered, bold "Dashboard"/"History"/"Alerts"/"Runs"/"Settings"
+  labels at 13sp. Bundling Material Icons font (~330 KB) is the
+  natural follow-up if/when icons matter.
+
+#### Outstanding / deferred for Phase 15
+- **App icon and presplash.** `buildozer.spec` has both lines
+  commented out; user will drop `KivyApp/data/icon.png` and
+  `KivyApp/data/presplash.png` and uncomment when ready.
+- **TopBar text vertical centering on Android.** Title + indicator
+  render top-aligned on the actual phone despite four
+  attempts (Label `valign="middle"` + bound text_size; AnchorLayout
+  wrapper; vertical BoxLayout with spacer Widgets; FloatLayout with
+  `pos_hint={"center_y": 0.5}` + fixed-size labels). All four
+  approaches verified on desktop with diagnostic prints
+  (`title.center_y == TopBar.center_y`); none of them centered on
+  Android. Likely a Kivy/p4a/SDL2 timing edge case where the
+  layout pass fires before child sizes are finalized and never
+  re-anchors. Cosmetic only - functionality intact.
+- **Material Icons in BottomNav.** Bundle the font + register via
+  `LabelBase.register('Material', ...)` if real icons matter.
+- **Public-storage saves on Android.** Currently saves to
+  `App.user_data_dir` (private sandbox). Wiring up MediaStore for
+  `/sdcard/Download` (API 29+) or scoped storage Share-sheet via
+  plyer is deferred until there's a concrete need.
+
 ### Phase 14 implementation notes
 - Pi4 `kiln_server/api.py` now synthesises the field shape the Kivy
   Dashboard (Pico-targeted) expects from a telemetry row plus the
@@ -944,17 +1069,20 @@ fixed in the same batch (rather than waiting for their nominal phase):
 
 ## What still needs building
 
-In rough priority order:
+The major workstreams are all complete and approved. Remaining items
+are minor / nice-to-haves:
 
-1. **`kiln_server/` Pi4 daemon** -- IMPLEMENTED and running on a local
-   Pi. Phase 14 added Pico-shape augmentation of `/status`, `/alerts`,
-   `/runs`, and `/health` so the Kivy Cottage mode reads the same
-   field set it does in Direct mode. Outstanding:
-   - End-to-end exercise from the Kivy app against the running Pi
-     (Phase 14 user test)
-   - ntfy.sh push smoke test from a real fault (any LORA_TIMEOUT or
-     equivalent code can confirm the path)
-2. **Kivy app** -- in progress, see "KivyApp/" section above
+1. **ntfy.sh push smoke test from a real fault.** Daemon notifier
+   path was wired in Phase 14 but never exercised end-to-end with a
+   live alert. Any `LORA_TIMEOUT` or other ALERT;... code generated
+   by the firmware will confirm the path; can be tested next time
+   the kiln is running.
+2. **Kivy app polish** (deferred — see "Outstanding / deferred for
+   Phase 15" above):
+   - App icon + presplash PNGs in `KivyApp/data/`
+   - Material Icons font in BottomNav (currently text-only)
+   - TopBar vertical centering on Android (cosmetic; desktop fine)
+   - MediaStore / Share-sheet for public-storage saves on Android
 
 ## Known firmware bugs
 

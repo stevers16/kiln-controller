@@ -52,6 +52,7 @@ from matplotlib.figure import Figure  # noqa: E402
 
 from kivy.clock import Clock  # noqa: E402
 from kivy.graphics import Color, Rectangle  # noqa: E402
+from kivy.metrics import dp  # noqa: E402
 from kivy.uix.boxlayout import BoxLayout  # noqa: E402
 from kivy.uix.button import Button  # noqa: E402
 from kivy.uix.dropdown import DropDown  # noqa: E402
@@ -64,6 +65,20 @@ from kilnapp.api.autodetect import DetectResult, MODE_OFFLINE  # noqa: E402
 from kilnapp.api.client import call_async  # noqa: E402
 from kilnapp.connection import ConnectionManager  # noqa: E402
 from kilnapp.format import format_run_label  # noqa: E402
+from kilnapp.platform_helpers import IS_ANDROID  # noqa: E402
+
+
+# Matplotlib renders text in literal points (1 pt = 1/72"). On a high-DPI
+# phone the default 8pt tick/legend text is physically tiny; scale up so
+# axis labels and legends are legible. Desktop stays at the original sizes.
+_MPL_FS_SCALE = 2.4 if IS_ANDROID else 1.0
+_MPL_TICK_FS = 8 * _MPL_FS_SCALE
+_MPL_LABEL_FS = 11 * _MPL_FS_SCALE
+_MPL_LEGEND_FS = 8 * _MPL_FS_SCALE
+_MPL_TEXT_FS = 11 * _MPL_FS_SCALE
+if IS_ANDROID:
+    matplotlib.rcParams["axes.labelsize"] = _MPL_LABEL_FS
+    matplotlib.rcParams["axes.titlesize"] = _MPL_LABEL_FS
 
 
 # ---- Time range options ---------------------------------------------------
@@ -236,7 +251,7 @@ def _encode_stages(stage_col: List[Any]) -> Tuple[List[Optional[int]], List[str]
 
 def _style_axes(ax) -> None:
     ax.set_facecolor(MPL_BG)
-    ax.tick_params(colors=MPL_FG, labelsize=8)
+    ax.tick_params(colors=MPL_FG, labelsize=_MPL_TICK_FS)
     for spine in ax.spines.values():
         spine.set_color(MPL_GRID)
     ax.grid(True, color=MPL_GRID, linewidth=0.5, alpha=0.6)
@@ -318,7 +333,7 @@ class _PlotTab(TabbedPanelItem):
         ax.text(
             0.5, 0.5, msg,
             color=MPL_FG, ha="center", va="center",
-            transform=ax.transAxes, fontsize=11,
+            transform=ax.transAxes, fontsize=_MPL_TEXT_FS,
         )
         ax.set_xticks([])
         ax.set_yticks([])
@@ -367,7 +382,7 @@ def _render_thermal(
         tab.render_empty("No temperature data for this range")
         return
     ax.set_ylabel("temperature (C)", color=MPL_FG)
-    ax.legend(facecolor=MPL_BG, edgecolor=MPL_GRID, labelcolor=MPL_FG, fontsize=8)
+    ax.legend(facecolor=MPL_BG, edgecolor=MPL_GRID, labelcolor=MPL_FG, fontsize=_MPL_LEGEND_FS)
     _fmt_xaxis(ax, xs)
     tab.canvas_widget.draw_idle()
 
@@ -417,7 +432,7 @@ def _render_humidity(
         tab.render_empty("No humidity data for this range")
         return
     ax.set_ylabel("relative humidity (%)", color=MPL_FG)
-    ax.legend(facecolor=MPL_BG, edgecolor=MPL_GRID, labelcolor=MPL_FG, fontsize=8)
+    ax.legend(facecolor=MPL_BG, edgecolor=MPL_GRID, labelcolor=MPL_FG, fontsize=_MPL_LEGEND_FS)
     _fmt_xaxis(ax, xs)
     tab.canvas_widget.draw_idle()
 
@@ -448,7 +463,7 @@ def _render_moisture(
         tab.render_empty("No moisture data for this range")
         return
     ax.set_ylabel("moisture content (%)", color=MPL_FG)
-    ax.legend(facecolor=MPL_BG, edgecolor=MPL_GRID, labelcolor=MPL_FG, fontsize=8)
+    ax.legend(facecolor=MPL_BG, edgecolor=MPL_GRID, labelcolor=MPL_FG, fontsize=_MPL_LEGEND_FS)
     _fmt_xaxis(ax, xs)
     tab.canvas_widget.draw_idle()
 
@@ -530,7 +545,7 @@ def _render_diagnostics(
     if lines1 or lines2:
         ax.legend(
             lines1 + lines2, labels1 + labels2,
-            facecolor=MPL_BG, edgecolor=MPL_GRID, labelcolor=MPL_FG, fontsize=8,
+            facecolor=MPL_BG, edgecolor=MPL_GRID, labelcolor=MPL_FG, fontsize=_MPL_LEGEND_FS,
             loc="best",
         )
     _fmt_xaxis(ax, xs)
@@ -580,13 +595,13 @@ class HistoryScreen(Screen):
 
         root = BoxLayout(
             orientation="vertical",
-            padding=(8, 6, 8, 6),
-            spacing=4,
+            padding=(dp(8), dp(6), dp(8), dp(6)),
+            spacing=dp(4),
         )
 
         # Header: run dropdown + refresh
         header = BoxLayout(
-            orientation="horizontal", size_hint_y=None, height=32, spacing=6
+            orientation="horizontal", size_hint_y=None, height=dp(36), spacing=dp(6)
         )
         self.run_button = Button(
             text="(no run selected)",
@@ -600,7 +615,7 @@ class HistoryScreen(Screen):
         refresh_btn = Button(
             text="Refresh",
             size_hint_x=None,
-            width=80,
+            width=dp(84),
             font_size="12sp",
             background_color=(0.30, 0.55, 0.85, 1),
             color=(1, 1, 1, 1),
@@ -612,7 +627,7 @@ class HistoryScreen(Screen):
         # Range buttons
         self._range_buttons: List[Tuple[Button, Optional[int]]] = []
         range_row = BoxLayout(
-            orientation="horizontal", size_hint_y=None, height=30, spacing=4
+            orientation="horizontal", size_hint_y=None, height=dp(34), spacing=dp(4)
         )
         for label, hours in RANGE_OPTIONS:
             btn = Button(
@@ -635,7 +650,7 @@ class HistoryScreen(Screen):
             color=theme.TEXT_SECONDARY,
             font_size="11sp",
             size_hint_y=None,
-            height=18,
+            height=dp(20),
             halign="left",
             valign="middle",
         )
@@ -644,13 +659,13 @@ class HistoryScreen(Screen):
         )
         root.add_widget(self.status_label)
 
-        # Tabbed plot panel. Tab width is fixed at 68 so five tabs fit
-        # cleanly inside the 390-wide phone-shaped window without the
-        # last tab getting clipped.
+        # Tabbed plot panel. Tab width is fixed so five tabs fit cleanly
+        # inside the 390dp phone-shaped window without the last tab getting
+        # clipped (5 * 72dp + spacing = ~360dp).
         self.tabs = TabbedPanel(
             do_default_tab=False,
-            tab_width=68,
-            tab_height=30,
+            tab_width=dp(72),
+            tab_height=dp(34),
             background_color=(0.15, 0.16, 0.19, 1),
         )
         self.tab_thermal = _PlotTab("Temp")
@@ -847,7 +862,7 @@ class HistoryScreen(Screen):
             item = Button(
                 text=label,
                 size_hint_y=None,
-                height=28,
+                height=dp(32),
                 font_size="12sp",
                 background_color=(0.20, 0.22, 0.26, 1),
                 color=(1, 1, 1, 1),

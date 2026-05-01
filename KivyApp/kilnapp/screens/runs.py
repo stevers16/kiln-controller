@@ -21,6 +21,7 @@ from typing import Any, Dict, List, Optional
 
 from kivy.clock import Clock
 from kivy.graphics import Color, Rectangle
+from kivy.metrics import dp
 from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.button import Button
 from kivy.uix.label import Label
@@ -48,7 +49,7 @@ class _StatusBadge(BoxLayout):
     def __init__(self, is_active: bool, **kwargs):
         super().__init__(orientation="vertical", **kwargs)
         self.size_hint = (None, None)
-        self.size = (72, 18)
+        self.size = (dp(80), dp(20))
         bg = theme.SEVERITY_OK if is_active else theme.TEXT_MUTED
         text = "ACTIVE" if is_active else "COMPLETED"
         with self.canvas.before:
@@ -86,12 +87,12 @@ class _RunRow(Panel):
         super().__init__(**kwargs)
         self.run = run
         self._on_tap = on_tap
-        self.padding = (10, 6, 10, 6)
-        self.spacing = 2
+        self.padding = (dp(10), dp(6), dp(10), dp(6))
+        self.spacing = dp(2)
 
         # Header: primary label (ended or started date) + status badge
         header = BoxLayout(
-            orientation="horizontal", size_hint_y=None, height=20, spacing=6
+            orientation="horizontal", size_hint_y=None, height=dp(22), spacing=dp(6)
         )
         ts_lbl = value_label(format_run_label(run), size="14sp")
         ts_lbl.size_hint_x = 1
@@ -146,17 +147,17 @@ class _RunDetail(BoxLayout):
         **kwargs,
     ):
         super().__init__(orientation="vertical", **kwargs)
-        self.padding = (10, 8, 10, 8)
-        self.spacing = 6
+        self.padding = (dp(10), dp(8), dp(10), dp(8))
+        self.spacing = dp(6)
 
         # Back button
         back_row = BoxLayout(
-            orientation="horizontal", size_hint_y=None, height=32, spacing=8
+            orientation="horizontal", size_hint_y=None, height=dp(36), spacing=dp(8)
         )
         back_btn = Button(
             text="< Back to Runs",
             size_hint_x=None,
-            width=140,
+            width=dp(140),
             font_size="13sp",
             background_color=(0.30, 0.32, 0.38, 1),
             color=(1, 1, 1, 1),
@@ -170,9 +171,9 @@ class _RunDetail(BoxLayout):
         scroll = ScrollView(do_scroll_x=False, do_scroll_y=True)
         content = BoxLayout(
             orientation="vertical",
-            spacing=6,
+            spacing=dp(6),
             size_hint_y=None,
-            padding=(0, 0, 0, 8),
+            padding=(0, 0, 0, dp(8)),
         )
         content.bind(minimum_height=content.setter("height"))
 
@@ -250,8 +251,8 @@ class _RunDetail(BoxLayout):
         btn_row = BoxLayout(
             orientation="horizontal",
             size_hint_y=None,
-            height=38,
-            spacing=6,
+            height=dp(40),
+            spacing=dp(6),
         )
         if on_view_alerts:
             alerts_btn = Button(
@@ -290,8 +291,8 @@ class _RunDetail(BoxLayout):
             delete_row = BoxLayout(
                 orientation="horizontal",
                 size_hint_y=None,
-                height=38,
-                spacing=6,
+                height=dp(40),
+                spacing=dp(6),
             )
             delete_btn = Button(
                 text="Delete Run",
@@ -337,13 +338,13 @@ class RunsScreen(Screen):
 
         self._root = BoxLayout(
             orientation="vertical",
-            padding=(10, 8, 10, 8),
-            spacing=6,
+            padding=(dp(10), dp(8), dp(10), dp(8)),
+            spacing=dp(6),
         )
 
         # Header row with title + refresh
         header = BoxLayout(
-            orientation="horizontal", size_hint_y=None, height=32, spacing=6
+            orientation="horizontal", size_hint_y=None, height=dp(36), spacing=dp(6)
         )
         title = value_label("Drying Runs", size="16sp")
         title.size_hint_x = 1
@@ -351,7 +352,7 @@ class RunsScreen(Screen):
         refresh_btn = Button(
             text="Refresh",
             size_hint_x=None,
-            width=80,
+            width=dp(84),
             font_size="12sp",
             background_color=(0.30, 0.55, 0.85, 1),
             color=(1, 1, 1, 1),
@@ -367,7 +368,7 @@ class RunsScreen(Screen):
             color=theme.TEXT_SECONDARY,
             font_size="11sp",
             size_hint_y=None,
-            height=16,
+            height=dp(18),
             halign="left",
             valign="top",
         )
@@ -385,9 +386,9 @@ class RunsScreen(Screen):
         self.scroll = ScrollView(do_scroll_x=False, do_scroll_y=True)
         self.list_box = BoxLayout(
             orientation="vertical",
-            spacing=6,
+            spacing=dp(6),
             size_hint_y=None,
-            padding=(0, 0, 0, 8),
+            padding=(0, 0, 0, dp(8)),
         )
         self.list_box.bind(minimum_height=self.list_box.setter("height"))
         self.scroll.add_widget(self.list_box)
@@ -483,7 +484,7 @@ class RunsScreen(Screen):
 
         if not self._runs:
             empty_box = BoxLayout(
-                orientation="vertical", size_hint_y=None, height=80
+                orientation="vertical", size_hint_y=None, height=dp(96)
             )
             lbl = Label(
                 text="No runs recorded",

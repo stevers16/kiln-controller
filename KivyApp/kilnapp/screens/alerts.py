@@ -21,6 +21,7 @@ from typing import Any, Dict, List, Optional
 
 from kivy.clock import Clock
 from kivy.graphics import Color, Rectangle
+from kivy.metrics import dp
 from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.button import Button
 from kivy.uix.label import Label
@@ -116,7 +117,7 @@ class _AlertRow(Panel):
         self.spacing = 2
 
         # Header line: timestamp + severity badge + tier badge (if any)
-        header = BoxLayout(orientation="horizontal", size_hint_y=None, height=20, spacing=6)
+        header = BoxLayout(orientation="horizontal", size_hint_y=None, height=dp(22), spacing=dp(6))
         ts_label = small_label(_fmt_ts(alert.get("ts")), size="11sp")
         ts_label.size_hint_x = 1
         header.add_widget(ts_label)
@@ -211,16 +212,16 @@ class AlertsScreen(Screen):
 
         root = BoxLayout(
             orientation="vertical",
-            padding=(10, 8, 10, 8),
-            spacing=6,
+            padding=(dp(10), dp(8), dp(10), dp(8)),
+            spacing=dp(6),
         )
 
         # Filter bar: All / Errors / Warnings + Run dropdown
         filter_row = BoxLayout(
             orientation="horizontal",
             size_hint_y=None,
-            height=36,
-            spacing=4,
+            height=dp(40),
+            spacing=dp(4),
         )
         self._filter_buttons: Dict[str, ToggleButton] = {}
         for value, label in (
@@ -246,13 +247,13 @@ class AlertsScreen(Screen):
         run_row = BoxLayout(
             orientation="horizontal",
             size_hint_y=None,
-            height=36,
-            spacing=4,
+            height=dp(40),
+            spacing=dp(4),
         )
-        run_label = small_label("Run:", size="12sp")
+        run_label = small_label("Run:", size="13sp")
         run_label.size_hint_x = None
-        run_label.width = 40
-        run_label.height = 36
+        run_label.width = dp(48)
+        run_label.height = dp(40)
         run_row.add_widget(run_label)
         self.run_spinner = spinner(values=["Current run"], initial="Current run")
         self.run_spinner.bind(text=self._on_run_changed)
@@ -260,7 +261,7 @@ class AlertsScreen(Screen):
         refresh_btn = Button(
             text="Refresh",
             size_hint_x=None,
-            width=80,
+            width=dp(84),
             font_size="12sp",
             background_color=(0.30, 0.55, 0.85, 1),
             color=(1, 1, 1, 1),
@@ -270,17 +271,16 @@ class AlertsScreen(Screen):
         root.add_widget(run_row)
 
         # Status / count line
-        self.status_label = small_label("", size="11sp")
-        self.status_label.height = 16
+        self.status_label = small_label("", size="12sp")
         root.add_widget(self.status_label)
 
         # Scrollable alerts list
         self.scroll = ScrollView(do_scroll_x=False, do_scroll_y=True)
         self.list_box = BoxLayout(
             orientation="vertical",
-            spacing=6,
+            spacing=dp(6),
             size_hint_y=None,
-            padding=(0, 0, 0, 8),
+            padding=(0, 0, 0, dp(8)),
         )
         self.list_box.bind(minimum_height=self.list_box.setter("height"))
         self.scroll.add_widget(self.list_box)
@@ -469,7 +469,7 @@ class AlertsScreen(Screen):
             empty_box = BoxLayout(
                 orientation="vertical",
                 size_hint_y=None,
-                height=80,
+                height=dp(96),
             )
             empty_label = Label(
                 text="No alerts recorded",

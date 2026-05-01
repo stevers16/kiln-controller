@@ -5,6 +5,7 @@ real autodetect result.
 """
 
 from kivy.graphics import Color, Ellipse
+from kivy.metrics import dp
 from kivy.properties import ListProperty, StringProperty
 from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.label import Label
@@ -19,7 +20,7 @@ class _Dot(Widget):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.size_hint = (None, None)
-        self.size = (14, 14)
+        self.size = (dp(14), dp(14))
         with self.canvas:
             self._color_instr = Color(*self.color)
             self._ellipse = Ellipse(pos=self.pos, size=self.size)
@@ -42,11 +43,11 @@ class ConnectionIndicator(BoxLayout):
     def __init__(self, **kwargs):
         super().__init__(orientation="horizontal", spacing=8, **kwargs)
         self.size_hint = (None, 1)
-        self.width = 110
+        self.width = dp(110)
         self.padding = (0, 0, 8, 0)
 
         # Centre the dot vertically inside an anchor-style spacer
-        dot_wrap = BoxLayout(orientation="vertical", size_hint=(None, 1), width=14)
+        dot_wrap = BoxLayout(orientation="vertical", size_hint=(None, 1), width=dp(14))
         dot_wrap.add_widget(Widget())  # top spacer
         self._dot = _Dot()
         dot_wrap.add_widget(self._dot)

@@ -3,10 +3,17 @@
 Plain Kivy implementation (no KivyMD dependency). Each tab is a ToggleButton
 in a shared group; selecting one switches the ScreenManager to the matching
 screen and visually highlights the active tab.
+
+Text-only labels for now: Kivy's bundled Roboto doesn't include the
+Unicode dingbats / geometric glyphs that would otherwise read as icons,
+and Kivy doesn't fall back to system fonts on Android, so anything not
+in Roboto renders as a tofu box. Real Material icons would need a
+bundled icon font (deferred).
 """
 
 from kivy.graphics import Color, Rectangle
 from kivy.properties import StringProperty
+from kivy.uix.anchorlayout import AnchorLayout
 from kivy.uix.behaviors import ToggleButtonBehavior
 from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.label import Label
@@ -14,13 +21,13 @@ from kivy.uix.label import Label
 from kilnapp import theme
 
 
-class _NavTab(ToggleButtonBehavior, BoxLayout):
-    """One bottom-nav tab. Two stacked labels (icon glyph + name)."""
+class _NavTab(ToggleButtonBehavior, AnchorLayout):
+    """One bottom-nav tab. Single centered text label."""
 
     screen_name = StringProperty("")
 
     def __init__(self, label: str, screen_name: str, icon_glyph: str = "", **kwargs):
-        super().__init__(orientation="vertical", **kwargs)
+        super().__init__(anchor_x="center", anchor_y="center", **kwargs)
         self.screen_name = screen_name
         self.group = "kiln_bottom_nav"
         self.allow_no_selection = False
@@ -31,21 +38,15 @@ class _NavTab(ToggleButtonBehavior, BoxLayout):
             self._bg_rect = Rectangle(pos=self.pos, size=self.size)
         self.bind(pos=self._sync_bg, size=self._sync_bg)
 
-        self._icon_label = Label(
-            text=icon_glyph or label[0],
-            color=theme.TEXT_SECONDARY,
-            font_size="18sp",
-            halign="center",
-            valign="bottom",
-        )
+        self._icon_label = None  # kept for back-compat with _on_state
         self._text_label = Label(
             text=label,
             color=theme.TEXT_SECONDARY,
-            font_size="11sp",
+            font_size="13sp",
+            bold=True,
             halign="center",
-            valign="top",
+            valign="middle",
         )
-        self.add_widget(self._icon_label)
         self.add_widget(self._text_label)
 
         self.bind(state=self._on_state)
@@ -57,24 +58,23 @@ class _NavTab(ToggleButtonBehavior, BoxLayout):
     def _on_state(self, _instance, value):
         if value == "down":
             self._bg_color.rgba = theme.BG_PANEL_ACTIVE
-            self._icon_label.color = theme.TEXT_PRIMARY
             self._text_label.color = theme.TEXT_PRIMARY
         else:
             self._bg_color.rgba = theme.BG_PANEL
-            self._icon_label.color = theme.TEXT_SECONDARY
             self._text_label.color = theme.TEXT_SECONDARY
 
 
 class BottomNav(BoxLayout):
     """Container for the five tabs. Calls `on_select(screen_name)` when tapped."""
 
-    # The five tabs from kivy_app_spec.md > Navigation
+    # The five tabs from kivy_app_spec.md > Navigation. Glyphs are
+    # BMP-Unicode symbols that render in the default Roboto bundle.
     TABS = [
-        ("Dashboard", "dashboard", "H"),
-        ("History", "history", "~"),
-        ("Alerts", "alerts", "!"),
-        ("Runs", "runs", "="),
-        ("Settings", "settings", "*"),
+        ("Dashboard", "dashboard", "⌂"),  # ⌂  HOUSE
+        ("History",   "history",   "⧗"),  # ⧗  TIMER / hourglass-like
+        ("Alerts",    "alerts",    "⚠"),  # ⚠  WARNING SIGN
+        ("Runs",      "runs",      "☰"),  # ☰  TRIGRAM (list)
+        ("Settings",  "settings",  "⚙"),  # ⚙  GEAR
     ]
 
     def __init__(self, on_select=None, **kwargs):

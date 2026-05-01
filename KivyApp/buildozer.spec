@@ -38,7 +38,7 @@ version = 0.1.0
 # build_ext`. 3.4.3 is the recipe's battle-tested version. Desktop
 # uses 3.10.8 (only place FigureCanvasKivyAgg is exercised; both
 # versions expose the same surface).
-requirements = python3,kivy==2.3.1,requests,urllib3,certifi,charset-normalizer,idna,matplotlib==3.4.3,kivy_garden.matplotlib==0.1.1.dev0,numpy,pillow,kiwisolver,cycler,fonttools,packaging,pyparsing,python-dateutil,pytz,plyer,android
+requirements = python3,kivy==2.3.1,filetype,requests,urllib3,certifi,charset-normalizer,idna,matplotlib==3.4.3,kivy_garden.matplotlib==0.1.1.dev0,numpy,pillow,kiwisolver,cycler,fonttools,packaging,pyparsing,python-dateutil,pytz,plyer,android
 
 # (str) Custom source folders for requirements
 # Sets custom source for any requirements with recipes

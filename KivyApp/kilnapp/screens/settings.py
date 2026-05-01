@@ -11,6 +11,7 @@ from typing import Callable, Optional
 
 from kivy.clock import Clock
 from kivy.graphics import Color, Rectangle
+from kivy.metrics import dp
 from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.button import Button
 from kivy.uix.label import Label
@@ -84,7 +85,7 @@ def _section_header(text: str) -> Label:
         font_size="16sp",
         bold=True,
         size_hint_y=None,
-        height=32,
+        height=dp(36),
         halign="left",
         valign="bottom",
     )
@@ -96,7 +97,7 @@ def _button(text: str, on_press) -> Button:
     btn = Button(
         text=text,
         size_hint_y=None,
-        height=40,
+        height=dp(44),
         font_size="14sp",
         background_color=(0.30, 0.55, 0.85, 1),
         color=(1, 1, 1, 1),
@@ -130,8 +131,8 @@ class SettingsScreen(Screen):
         scroll = ScrollView(do_scroll_x=False, do_scroll_y=True)
         form = BoxLayout(
             orientation="vertical",
-            padding=(16, 16, 16, 16),
-            spacing=8,
+            padding=(dp(16), dp(12), dp(16), dp(12)),
+            spacing=dp(2),
             size_hint_y=None,
         )
         form.bind(minimum_height=form.setter("height"))
@@ -163,7 +164,7 @@ class SettingsScreen(Screen):
         form.add_widget(row("Mode", self.f_override))
 
         # Test connection buttons
-        test_box = BoxLayout(orientation="horizontal", size_hint_y=None, height=40, spacing=8)
+        test_box = BoxLayout(orientation="horizontal", size_hint_y=None, height=dp(44), spacing=dp(8))
         test_box.add_widget(_button("Test Pico", self._test_pico))
         test_box.add_widget(_button("Test Pi4", self._test_pi4))
         form.add_widget(test_box)
@@ -174,7 +175,7 @@ class SettingsScreen(Screen):
         self.f_api_key = text_input(s.api_key, password=True, hint="Pico X-Kiln-Key")
         form.add_widget(row("API key", self.f_api_key))
 
-        show_box = BoxLayout(orientation="horizontal", size_hint_y=None, height=36, spacing=8)
+        show_box = BoxLayout(orientation="horizontal", size_hint_y=None, height=dp(40), spacing=dp(8))
         show_box.add_widget(_button("Show / hide key", self._toggle_show_key))
         form.add_widget(show_box)
 
@@ -200,8 +201,8 @@ class SettingsScreen(Screen):
         self.daemon_section = BoxLayout(
             orientation="vertical",
             size_hint_y=None,
-            spacing=4,
-            padding=(0, 4, 0, 4),
+            spacing=dp(4),
+            padding=(0, dp(4), 0, dp(4)),
         )
         self.daemon_section.bind(
             minimum_height=self.daemon_section.setter("height")
@@ -233,7 +234,7 @@ class SettingsScreen(Screen):
             color=theme.TEXT_SECONDARY,
             font_size="13sp",
             size_hint_y=None,
-            height=120,
+            height=dp(140),
             halign="left",
             valign="top",
         )
@@ -314,7 +315,7 @@ class SettingsScreen(Screen):
             color=theme.TEXT_SECONDARY,
             font_size="13sp",
             size_hint_y=None,
-            height=20,
+            height=dp(24),
             halign="left",
             valign="middle",
         )
